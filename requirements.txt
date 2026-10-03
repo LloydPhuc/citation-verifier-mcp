@@ -1,0 +1,32 @@
+# Citation Verifier MCP — Runtime Dependencies
+#
+# These are the direct dependencies required by the application code.
+# Versions are pinned to the known-good tested environment (Python 3.13.7).
+# Transitive dependencies are intentionally omitted.
+#
+# Installation:
+#   pip install -r requirements.txt
+#
+# Note: academic-refchecker is an external CLI tool invoked via subprocess.
+# It must be installed separately (not on PyPI). See bootstrap.ps1.
+
+# MCP protocol server
+mcp==2.2.0
+
+# PDF text extraction (pdfplumber)
+pdfplumber==0.11.10
+
+# BM25 lexical retrieval
+rank-bm25==0.2.2
+
+# HTTP client for source/document loading
+requests==2.34.2
+
+# PyTorch (CPU variant tested; CUDA variant also compatible)
+torch==2.14.0+cpu
+
+# Hugging Face Transformers (DeBERTa-v3 NLI model)
+transformers==5.17.0
+
+# SentencePiece tokenizer (required by transformers for DeBERTa)
+sentencepiece==0.2.2

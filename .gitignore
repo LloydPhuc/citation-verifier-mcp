@@ -1,0 +1,56 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime
+runtime/
+data/
+cache/
+logs/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Temporary reports
+.mcp_report_*.json
+test.json
+
+# Models / ML cache
+.huggingface/
+huggingface/
+models/
+*.safetensors
+
+# Papers / extraction artifacts
+*.pdf
+*.tei.xml
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Packaging artifacts
+baseline-pip-freeze.txt
+dist/
+build/
+*.egg-info/
+*.log
+
+# Legacy files excluded from public release
+legacy/server_v1_working.py

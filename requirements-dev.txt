@@ -1,0 +1,21 @@
+# Citation Verifier MCP — Development Dependencies
+#
+# These are additional dependencies for development, testing, and code quality.
+# Includes all runtime dependencies via -r requirements.txt.
+#
+# Installation:
+#   pip install -r requirements-dev.txt
+
+# Runtime dependencies
+-r requirements.txt
+
+# Testing
+pytest==8.3.5
+
+# Code quality (optional but recommended)
+ruff==0.9.3
+mypy==1.15.0
+
+# Test fixture PDF generation and encryption
+reportlab==4.2.5
+pypdf==6.19.0
