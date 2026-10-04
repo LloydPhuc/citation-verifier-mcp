@@ -12,8 +12,7 @@ Before starting, ensure you have:
 
 1. **Windows 11 historically tested; Windows 10 not independently verified** (Linux/macOS may work but is untested).
 2. **Docker Desktop** with Compose support (for GROBID).
-3. **Python 3.13+** (the bootstrap script uses the Windows `py` launcher and
-   prefers Python 3.13, but currently accepts unsupported 3.12). Only 3.13.7 is independently verified; package metadata requires >=3.13.
+3. **Python 3.13+** (required by package metadata and bootstrap). Bootstrap prefers Python 3.13 through the Windows `py` launcher and retains the actual selected interpreter, or uses a validated fallback. Python 3.13.7 on Windows 11 is the independently verified application environment.
 4. Internet access for dependency/model/image setup, remote PDFs and RefChecker metadata lookups. Initial model download
    (~170 MB for the DeBERTa NLI model).
 
@@ -59,7 +58,7 @@ Replace `<your-username>` with the actual repository owner.
 
 ### 2. Bootstrap the Environment
 
-For an existing checkout, inspect `.venv` ownership/version and follow the recovery precautions below before running bootstrap; an incomplete environment can be deleted by the script.
+For an existing checkout, inspect `.venv` ownership/version and follow the recovery precautions below before running bootstrap. Without `-Force`, unsupported, broken or incomplete environments are preserved and rejected.
 
 ```powershell
 .\scripts\bootstrap.ps1
@@ -67,7 +66,7 @@ For an existing checkout, inspect `.venv` ownership/version and follow the recov
 
 This script:
 
-- Probes Python 3.13 via `py`, then checks fallback interpreters. Its 3.12 minimum and unpinned launcher default are known executable defects; use Python >=3.13.
+- Selects and retains the actual Python interpreter via `py -3.13` or a compatible fallback; Python >=3.13 is required.
 - Creates an isolated `.venv` in the repository.
 - Installs all dependencies from `requirements.txt`, including PyTorch CPU.
 - Installs `academic-refchecker` (the bibliography verification CLI).
@@ -75,7 +74,7 @@ This script:
   Hugging Face cache.
 - Runs import and compilation checks.
 
-An existing environment with `Scripts\python.exe` is reused without a version check; verify its Python version. Bootstrap changes installed dependencies and deletes an incomplete `.venv`. `-Force` deletes the existing environment: diagnose first, confirm exclusive ownership and the resolved checkout path, stop clients and preserve package inventory/custom files before recreation. See [safe recovery](troubleshooting.md#module-import-errors).
+Bootstrap validates the environment's own Python version before reuse and package installation, including newly created environments. Without `-Force`, an unsupported, broken or incomplete `.venv` is preserved and rejected. Reusing a supported environment can change installed dependencies. Explicit `-Force` recreates it only after selected-interpreter and expected-path checks, and rejects a linked root `.venv`; these checks do not establish ownership or create backups. Diagnose first, confirm exclusive ownership, stop clients and preserve the environment and package inventory before recreation. See [safe recovery](troubleshooting.md#module-import-errors).
 
 Bootstrap can warn about model preparation and still complete. Runtime never downloads missing model files (`local_files_only=True`); resolve preparation failures before V2 use.
 

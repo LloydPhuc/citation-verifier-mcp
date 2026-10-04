@@ -47,7 +47,7 @@
 
 ### Missing virtual environment
 
-Confirm `.venv` is genuinely absent. If it exists but is incomplete, follow [recovery precautions](#module-import-errors) first; bootstrap can delete it.
+Confirm `.venv` is genuinely absent. If it exists but is unsupported, broken or incomplete, bootstrap rejects it without deleting it unless `-Force` is explicitly chosen. Follow [recovery precautions](#module-import-errors) first.
 
 **Fix:**
 ```powershell
@@ -125,8 +125,9 @@ Persistent user environment settings apply to future processes. Generic VS Code 
    ```powershell
    .\.venv\Scripts\python.exe --version
    ```
-2. Check `.\.venv\Scripts\python.exe --version` and dependency/import diagnostics first. Supported Python is >=3.13; bootstrap currently accepts unsupported 3.12.
-3. Bootstrap changes packages, deletes incomplete environments and `-Force` deletes a complete environment. Before recovery, verify the resolved `.venv` is private to this checkout, stop its clients, record installed packages and preserve custom files/package inventory in a separate backup. Prefer a fresh checkout when ownership is uncertain. Never use forced recreation as the default response to an import error.
+2. Check whether `.venv\Scripts\python.exe` exists and, if present, run the version command above. Record a failed execution or missing/unparseable version output rather than treating the environment as usable. Bootstrap requires Python >=3.13 and validates both the selected interpreter and the environment's own Python; Python 3.13.7 on Windows 11 is the independently verified application environment.
+3. Without `-Force`, an unsupported, broken or incomplete `.venv` is preserved and rejected before package installation. Inspect the reported executable/path and dependency/import diagnostics. Installing a newer system Python does not upgrade an existing environment; preserve it and choose a fresh checkout or an explicit recovery plan.
+4. Bootstrap can change packages in a supported reused environment. Explicit `-Force` deletes and recreates `.venv` after validating the selected interpreter and expected checkout path, and rejects a linked root `.venv`. These safeguards do not establish ownership or create backups. Before choosing `-Force`, confirm exclusive ownership, stop clients, record installed packages and preserve the environment in a separate backup. Prefer a fresh checkout when ownership is uncertain. Never use forced recreation as the default response to an import error.
 
 ## Model Download Issues
 

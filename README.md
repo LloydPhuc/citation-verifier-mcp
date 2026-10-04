@@ -105,7 +105,9 @@ No API keys or tokens required. All inference runs locally.
 
 ## Installation (Windows)
 
-The GitHub URL below is a placeholder until publication. Replace `<your-username>` with the published owner. Use Python 3.13+; the verified environment uses 3.13.7. The bootstrap currently accepts 3.12, but that version is outside the package's declared support.
+The GitHub URL below is a placeholder until publication. Replace `<your-username>` with the published owner. Bootstrap requires Python >=3.13; the independently verified environment is Python 3.13.7 on Windows 11.
+
+Bootstrap retains the selected interpreter and validates the Python version of newly created and reused `.venv` environments before installing packages. Without `-Force`, unsupported, broken or incomplete existing environments are preserved and rejected. Before explicit `-Force` recreation, confirm exclusive ownership, stop clients and back up the environment; see [safe recovery](docs/troubleshooting.md#module-import-errors).
 
 ```powershell
 # 1. Clone the repository

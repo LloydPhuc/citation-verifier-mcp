@@ -20,7 +20,7 @@ cd citation-verifier-mcp
 
 ### 2. Bootstrap the Virtual Environment
 
-For an existing checkout, inspect `.venv` ownership/version and follow the recovery precautions below before running bootstrap; an incomplete environment can be deleted by the script.
+For an existing checkout, inspect `.venv` ownership/version and follow the recovery precautions below before running bootstrap. Without `-Force`, unsupported, broken or incomplete environments are preserved and rejected.
 
 ```powershell
 .\scripts\bootstrap.ps1
@@ -32,9 +32,9 @@ This script:
 - Pre-downloads the NLI model (`cross-encoder/nli-deberta-v3-small`)
 - Runs import and compilation checks
 
-**Supported Python:** `pyproject.toml` requires >=3.13; historical regression used 3.13.7. Bootstrap currently accepts 3.12, may select the launcher default instead of the probed 3.13, and does not validate a reused venv version. Check `.\.venv\Scripts\python.exe --version` before use. Executable compatibility defects require a separate fix before publication.
+**Supported Python:** `pyproject.toml` and bootstrap require >=3.13. Bootstrap resolves and retains the actual interpreter selected through `py -3.13`, or uses a validated fallback interpreter. It checks the selected interpreter before environment creation and the environment's own Python before reuse and package installation. Python 3.13.7 on Windows 11 is the independently verified application environment.
 
-**Environment recovery:** Diagnose first. Bootstrap changes installed packages and deletes an incomplete existing `.venv`; `-Force` deletes and recreates it. Confirm the resolved path is this checkout's private environment, stop clients using it, record installed packages and preserve custom files in a separate backup before recovery. Prefer a fresh checkout when ownership is uncertain.
+**Environment recovery:** Diagnose first. Bootstrap can change installed packages when reusing a supported environment. Unsupported, broken or incomplete existing environments require an explicit recovery choice; they are not silently deleted. `-Force` deletes and recreates `.venv` only after validating the selected interpreter and expected checkout path; a linked root `.venv` is rejected. These checks do not establish ownership or create backups. Confirm exclusive ownership, stop clients, record installed packages and preserve the environment in a separate backup before choosing `-Force`. Prefer a fresh checkout when ownership is uncertain.
 
 **Model preparation:** Bootstrap attempts to cache the tokenizer and model. Its warning about downloading on first verification is inaccurate: runtime uses `local_files_only=True`. Resolve setup/cache errors before V2 verification.
 
