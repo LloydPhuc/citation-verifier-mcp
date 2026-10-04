@@ -22,7 +22,7 @@ $ProgressPreference = 'SilentlyContinue'
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $VenvDir = Join-Path $RepoRoot '.venv'
 $RequirementsFile = Join-Path $RepoRoot 'requirements.txt'
-$MinPythonVersion = [version]'3.12'
+$MinPythonVersion = [version]'3.13'
 $PreferredPythonVersion = '3.13'
 $NLIModelId = 'cross-encoder/nli-deberta-v3-small'
 $PyTorchCpuIndex = 'https://download.pytorch.org/whl/cpu'
@@ -58,6 +58,23 @@ function Write-ErrorExit {
     exit $ExitCode
 }
 
+function Get-PythonVersion {
+    param([string]$Executable)
+    $output = & $Executable '--version' 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not run '$Executable' (exit code $LASTEXITCODE)."
+    }
+    $versionText = ($output -join "`n").Trim()
+    if ($versionText -notmatch '^Python (\d+\.\d+\.\d+)$') {
+        throw "Could not parse Python version from '$Executable': $versionText"
+    }
+    $detectedVersion = [version]$Matches[1]
+    if ($detectedVersion -lt $MinPythonVersion) {
+        throw "Python $detectedVersion at '$Executable' is unsupported. Python >= $MinPythonVersion is required."
+    }
+    return $detectedVersion
+}
+
 # ---------- [1/7] Checking Python ----------
 
 Write-Host ""
@@ -77,15 +94,24 @@ $SkipVenvCreation = $false
 $pyLauncher = Get-Command 'py.exe' -ErrorAction SilentlyContinue
 if ($pyLauncher) {
     try {
-        $ver = & 'py.exe' '-3.13' '--version' 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            $PythonExe = (Get-Command 'py.exe').Source
-            Write-Success "Found Python via py launcher: $ver"
+        $resolvedPython = & ($pyLauncher.Source) "-$PreferredPythonVersion" '-c' 'import sys; print(sys.executable)' 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "py launcher could not resolve Python $PreferredPythonVersion."
         }
-                        } catch { }
-                    }
-    
-                    # Try python3.13
+        $resolvedPath = ($resolvedPython -join "`n").Trim()
+        if (-not [IO.Path]::IsPathRooted($resolvedPath) -or
+            -not (Test-Path -LiteralPath $resolvedPath -PathType Leaf)) {
+            throw "py launcher returned an invalid interpreter path: $resolvedPath"
+        }
+        $pythonVersion = Get-PythonVersion $resolvedPath
+        $PythonExe = $resolvedPath
+        Write-Success "Found Python $pythonVersion via py launcher: $PythonExe"
+    } catch {
+        Write-Warn "Preferred Python unavailable: $_"
+    }
+}
+
+# Try compatible interpreters on PATH if the preferred launcher selection fails.
 if (-not $PythonExe) {
     $candidates = @(
         'python3.13',
@@ -96,56 +122,61 @@ if (-not $PythonExe) {
         $found = Get-Command $cmd -ErrorAction SilentlyContinue
         if ($found) {
             try {
-                $ver = & ($found.Source) '--version' 2>&1
-                if ($LASTEXITCODE -eq 0 -and $ver -match 'Python (\d+\.\d+)') {
-                    $detectedVersion = [version]$Matches[1]
-                    if ($detectedVersion -ge $MinPythonVersion) {
-                        $PythonExe = $found.Source
-                        Write-Success "Found Python: $ver at $($found.Source)"
-                        break
-                    }
-                }
-            } catch { }
+                $pythonVersion = Get-PythonVersion $found.Source
+                $PythonExe = $found.Source
+                Write-Success "Found Python $pythonVersion at $PythonExe"
+                break
+            } catch {
+                Write-Warn "Skipping '$($found.Source)': $_"
+            }
         }
     }
 }
 
 if (-not $PythonExe) {
-    Write-ErrorExit "No suitable Python found. Python >= $MinPythonVersion is required. Install Python 3.12 or 3.13 from https://www.python.org/downloads/"
+    Write-ErrorExit "No suitable Python found. Python >= $MinPythonVersion is required. Install Python 3.13 or newer from https://www.python.org/downloads/"
 }
 
 # Verify version
-$pythonVersionOutput = & $PythonExe '--version' 2>&1
-if ($pythonVersionOutput -match 'Python (\d+\.\d+\.\d+)') {
-    $pythonVersion = [version]$Matches[1]
-    if ($pythonVersion -lt $MinPythonVersion) {
-        Write-ErrorExit "Python $pythonVersion is too old. Python >= $MinPythonVersion is required."
-    }
+try {
+    $pythonVersion = Get-PythonVersion $PythonExe
     Write-Success "Python version: $pythonVersion (minimum required: $MinPythonVersion)"
-} else {
-    Write-ErrorExit "Could not determine Python version from: $pythonVersionOutput"
+} catch {
+    Write-ErrorExit "Selected interpreter validation failed: $_ No virtual environment was changed."
 }
 
 # ---------- [2/7] Preparing virtual environment ----------
 
 Write-Step "2/7" "Preparing virtual environment..."
 
-if (Test-Path $VenvDir) {
+if (Test-Path -LiteralPath $VenvDir) {
     $venvPython = Join-Path $VenvDir 'Scripts\python.exe'
-    if (Test-Path $venvPython) {
-        if ($Force) {
-            Write-Warn "Existing .venv found. Recreating due to -Force flag..."
-            Remove-Item -Recurse -Force $VenvDir
-        } else {
-            Write-Success "Existing .venv found and appears valid. Reusing."
-            Write-Host "  Location: $VenvDir"
-            Write-Host "  Use -Force to recreate from scratch."
-            # Skip to dependency check
-            $SkipVenvCreation = $true
+    if ($Force) {
+        # Do not follow a linked environment outside this checkout when deleting.
+        $resolvedVenvPath = (Resolve-Path -LiteralPath $VenvDir).Path
+        $expectedVenvPath = [IO.Path]::GetFullPath((Join-Path $RepoRoot '.venv'))
+        if ($resolvedVenvPath -ne $expectedVenvPath) {
+            Write-ErrorExit "Refusing to recreate .venv outside the expected checkout path: $resolvedVenvPath"
         }
+        $venvItem = Get-Item -LiteralPath $VenvDir -Force
+        if ($venvItem.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            Write-ErrorExit "Refusing to recreate a linked .venv at '$VenvDir'. Preserve it and use a private checkout environment."
+        }
+        Write-Warn "Existing .venv found. Recreating due to -Force flag..."
+        Remove-Item -LiteralPath $VenvDir -Recurse -Force
     } else {
-        Write-Warn "Existing .venv directory found but is incomplete. Recreating..."
-        Remove-Item -Recurse -Force $VenvDir
+        if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
+            Write-ErrorExit "Existing .venv has no Python interpreter at '$venvPython'. It was preserved. Back it up before explicitly choosing -Force, or use a fresh checkout."
+        }
+        try {
+            $venvVersion = Get-PythonVersion $venvPython
+        } catch {
+            Write-ErrorExit "Existing .venv cannot be reused: $_ It was preserved. Back it up before explicitly choosing -Force, or use a fresh checkout."
+        }
+        Write-Success "Existing .venv uses Python $venvVersion. Reusing."
+        Write-Host "  Location: $VenvDir"
+        Write-Host "  Use -Force to recreate from scratch."
+        $SkipVenvCreation = $true
     }
 }
 
@@ -167,6 +198,13 @@ $VenvPip = Join-Path $VenvDir 'Scripts\pip.exe'
 
 if (-not (Test-Path $VenvPython)) {
     Write-ErrorExit "Virtual environment python.exe not found at: $VenvPython"
+}
+
+# Check the resulting environment before any package installation.
+try {
+    $venvVersion = Get-PythonVersion $VenvPython
+} catch {
+    Write-ErrorExit "Virtual environment validation failed: $_ No packages were installed. Preserve the environment before recovery."
 }
 
 Write-Success "Venv Python: $VenvPython"
