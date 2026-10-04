@@ -9,7 +9,7 @@
 
 ## Reporting a Vulnerability
 
-The owner has selected **GitHub Private Vulnerability Reporting** as the official security-reporting channel for the published repository. The GitHub repository has not yet been created, so this feature is **not confirmed enabled or operational**.
+The official security-reporting channel for RefSentry is **GitHub Private Vulnerability Reporting** on [LloydPhuc/citation-verifier-mcp](https://github.com/LloydPhuc/citation-verifier-mcp/security). Use the repository's **Report a vulnerability** interface for private reports.
 
 **Publication gate:** Before the first public publication, enable and verify private vulnerability reporting for the actual repository. Public publication/release is **BLOCKED** until a valid private security-reporting channel is enabled and verified. After verification, use the published repository's private vulnerability-reporting interface.
 

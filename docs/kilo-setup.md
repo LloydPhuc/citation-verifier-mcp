@@ -1,6 +1,6 @@
 # Kilo MCP Integration Guide
 
-This guide walks through connecting the Citation Verifier MCP server to Kilo
+This guide walks through connecting RefSentry — Citation Verifier MCP to Kilo
 (a VS Code extension for AI-assisted coding) so you can call all five verification
 tools directly from your chat.
 
@@ -24,7 +24,7 @@ No API keys or tokens are required. Inference runs entirely locally.
 
 ```powershell
 # 1. Clone the repository
-git clone https://github.com/<your-username>/citation-verifier-mcp.git
+git clone https://github.com/LloydPhuc/citation-verifier-mcp.git
 cd citation-verifier-mcp
 
 # 2. Bootstrap the environment (creates .venv, installs deps, downloads model)
@@ -50,11 +50,9 @@ file (instructions below).
 ### 1. Clone the Repository
 
 ```powershell
-git clone https://github.com/<your-username>/citation-verifier-mcp.git
+git clone https://github.com/LloydPhuc/citation-verifier-mcp.git
 cd citation-verifier-mcp
 ```
-
-Replace `<your-username>` with the actual repository owner.
 
 ### 2. Bootstrap the Environment
 

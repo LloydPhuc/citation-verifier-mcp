@@ -14,7 +14,7 @@
 ### 1. Clone the Repository
 
 ```powershell
-git clone https://github.com/<your-username>/citation-verifier-mcp.git
+git clone https://github.com/LloydPhuc/citation-verifier-mcp.git
 cd citation-verifier-mcp
 ```
 

@@ -1,6 +1,6 @@
-# Contributing to Citation Verifier MCP
+# Contributing to RefSentry — Citation Verifier MCP
 
-Thank you for your interest in contributing to Citation Verifier MCP! This document outlines the process for setting up a development environment, running tests, and submitting changes.
+Thank you for your interest in contributing to RefSentry! This document outlines the process for setting up a development environment, running tests, and submitting changes.
 
 ## Quick Start
 
@@ -14,6 +14,8 @@ Thank you for your interest in contributing to Citation Verifier MCP! This docum
 | Git | 2.x | For cloning and versioning |
 
 ### 1. Fork and Clone
+
+Fork [LloydPhuc/citation-verifier-mcp](https://github.com/LloydPhuc/citation-verifier-mcp), then replace `<your-username>` below with your GitHub username to clone your fork.
 
 ```powershell
 git clone https://github.com/<your-username>/citation-verifier-mcp.git

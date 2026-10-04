@@ -1,6 +1,6 @@
-<img src="docs/banner.svg" alt="Citation Verifier MCP — trace citations, inspect evidence" width="960" />
+<img src="docs/banner.svg" alt="RefSentry — Citation Verifier MCP — trace citations, inspect evidence" width="960" />
 
-# Citation Verifier MCP
+# RefSentry — Citation Verifier MCP
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-6366f1?style=flat-square)](LICENSE)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-6366f1?style=flat-square&logo=python&logoColor=white)](pyproject.toml)
@@ -105,13 +105,13 @@ No API keys or tokens required. All inference runs locally.
 
 ## Installation (Windows)
 
-The GitHub URL below is a placeholder until publication. Replace `<your-username>` with the published owner. Bootstrap requires Python >=3.13; the independently verified environment is Python 3.13.7 on Windows 11.
+Bootstrap requires Python >=3.13; the independently verified environment is Python 3.13.7 on Windows 11.
 
 Bootstrap retains the selected interpreter and validates the Python version of newly created and reused `.venv` environments before installing packages. Without `-Force`, unsupported, broken or incomplete existing environments are preserved and rejected. Before explicit `-Force` recreation, confirm exclusive ownership, stop clients and back up the environment; see [safe recovery](docs/troubleshooting.md#module-import-errors).
 
 ```powershell
 # 1. Clone the repository
-git clone https://github.com/<your-username>/citation-verifier-mcp.git
+git clone https://github.com/LloydPhuc/citation-verifier-mcp.git
 cd citation-verifier-mcp
 
 # 2. Bootstrap environment (creates .venv, installs deps, downloads model)
