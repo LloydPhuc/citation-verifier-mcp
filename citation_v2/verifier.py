@@ -50,6 +50,8 @@ EVIDENCE_WINDOW_OVERLAP_CHARS = 300
 
 PARTIAL_ENTAILMENT_THRESHOLD = 0.50
 
+MIN_CONTRADICTION_EVIDENCE_OVERLAP = 0.30
+
 
 # ============================================================
 # Exceptions
@@ -61,6 +63,133 @@ class VerificationError(RuntimeError):
 
 class VerificationInputError(VerificationError):
     """Invalid claim/source input."""
+
+
+# ============================================================
+# Evidence relevance: content-word overlap
+# ============================================================
+
+_STOPWORDS = frozenset({
+    "the", "a", "an", "of", "in", "on", "at", "to", "for", "with",
+    "and", "or", "but", "by", "from", "is", "are", "was", "were",
+    "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "will", "would", "could", "should", "may", "might", "must", "shall",
+    "can", "this", "that", "these", "those", "i", "you", "he", "she",
+    "it", "we", "they", "me", "him", "her", "us", "them", "my", "your",
+    "his", "its", "our", "their", "all", "some", "any", "no", "not",
+    "so", "than", "then", "there", "here", "what", "which", "who",
+    "whom", "whose", "where", "when", "while", "about", "above",
+    "below", "into", "out", "up", "down", "as", "if", "because",
+    "until", "though", "through", "between", "during", "before",
+    "after", "both", "each", "few", "more", "most", "other", "such",
+    "only", "own", "same", "too", "very", "just", "also", "even",
+    "now", "said",
+})
+
+_TOKEN_RE = re.compile(r"[a-zA-Z]+")
+
+
+def _stem_word(word: str) -> str:
+    """
+    Minimal suffix-stripping stemmer for lexical overlap.
+
+    Normalizes common English inflectional and derivational suffixes so
+    that morphological variants share a stem (e.g. *hallucinated* and
+    *hallucinations* both → *hallucinat*, *citations* and *citation*
+    both → *citat*, *references* and *reference* both → *reference*).
+
+    This is **not** a full Porter stemmer — it strips a curated set of
+    high-frequency suffixes and is sufficient for content-word overlap
+    estimation.  No external libraries are required.
+    """
+    if len(word) <= 3:
+        return word
+
+    # --- Step 1a: Plurals (Porter-style) ---
+    if word.endswith("sses"):
+        word = word[:-2] + "ss"
+    elif word.endswith("ies") and len(word) > 4:
+        word = word[:-3] + "i"
+    elif word.endswith("s") and not word.endswith("ss"):
+        word = word[:-1]
+
+    # --- Step 1b: Verb endings (-ed, -ing, -edly, -ingly) ---
+    for suffix in ("edly", "ingly", "ing", "ed"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            base = word[:-len(suffix)]
+            if any(ch in base for ch in "aeiou"):
+                word = base
+            break
+
+    # --- Step 2/3: Derivational suffixes (longest match first) ---
+    # NOTE: "ion" is preferred over "ation"/"ition" so that
+    # hallucinated/hallucinations both → hallucinat, not hallucin.
+    deriv_suffixes = sorted(
+        [
+            "izations", "ational", "fulness", "ousness", "iveness",
+            "ization", "alize", "alise", "alised", "alising", "alized",
+            "alizing", "ements", "ement", "aliti", "alism", "eness",
+            "ities", "ity", "ment", "izers", "izer", "ify", "ate",
+            "ion",
+        ],
+        key=len,
+        reverse=True,
+    )
+    for suffix in deriv_suffixes:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[:-len(suffix)]
+
+    return word
+
+
+def _content_words(text: str) -> frozenset[str]:
+    """
+    Extract lowercase alphabetic content-word stems, filtering stopwords.
+
+    Tokens are lowercased and passed through :func:`_stem_word` so that
+    morphological variants collapse to a common stem.
+    """
+    return frozenset(
+        _stem_word(token.lower())
+        for token in _TOKEN_RE.findall(text)
+        if token.lower() not in _STOPWORDS
+    )
+
+
+def _evidence_relevant_to_claim(claim: str, evidence: str) -> bool:
+    """
+    Return True if the evidence passage is topically relevant to the claim.
+
+    NLI models can assign high contradiction scores to premises that are
+    simply *irrelevant* to the hypothesis (semantic distance mistaken for
+    logical contradiction).  Requiring a minimum coverage of content
+    words prevents unrelated evidence from generating false
+    strong-contradiction signals.
+
+    Coverage is the fraction of the claim's content-word stems that also
+    appear in the evidence.  A single shared content word (e.g. the generic
+    word "paper") is not sufficient — the evidence must share a meaningful
+    fraction of the claim's content vocabulary.
+    """
+    return _claim_evidence_overlap_ratio(claim, evidence) >= MIN_CONTRADICTION_EVIDENCE_OVERLAP
+
+
+def _claim_evidence_overlap_ratio(claim: str, evidence: str) -> float:
+    """
+    Coverage of claim content-word stems found in evidence.
+
+    Returns ``len(claim_stems ∩ evidence_stems) / len(claim_stems)``,
+    i.e. the fraction of the claim's content vocabulary that is
+    substantiated by the evidence passage.
+    """
+    claim_words = _content_words(claim)
+    if not claim_words:
+        return 1.0
+    evidence_words = _content_words(evidence)
+    if not evidence_words:
+        return 0.0
+    intersection = claim_words & evidence_words
+    return len(intersection) / len(claim_words)
 
 
 class VerificationIntegrityError(VerificationError):
@@ -103,6 +232,8 @@ class EvidenceCandidate:
     provenance_verified: bool
 
     numeric_match: bool
+
+    claim_relevant: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -697,6 +828,11 @@ def _score_candidates(
                         claim,
                         quote,
                     ),
+                claim_relevant=
+                    _evidence_relevant_to_claim(
+                        claim,
+                        quote,
+                    ),
             )
         )
 
@@ -841,6 +977,7 @@ def _decide(
             candidate.contradiction
             >= NLI_CONTRADICTION_THRESHOLD
             and candidate.provenance_verified
+            and candidate.claim_relevant
         )
     ]
 
