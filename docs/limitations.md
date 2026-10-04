@@ -30,7 +30,7 @@
 | Limitation | Status | Details |
 |---|---|---|
 | RefChecker (V1) runtime | **Inherent** | The `citation_summary` tool invokes `academic-refchecker.exe` which takes ~5–6 minutes for 24 references. The application has a 600s timeout. External runners (CI/CD, Task tool wrappers) must allow ≥12 minutes. |
-| First-run model download | **One-time** | Initial download of `cross-encoder/nli-deberta-v3-small` (~170 MB) requires internet access. Subsequent runs use the local cache. |
+| Setup model download | **One-time** | Initial download of `cross-encoder/nli-deberta-v3-small` (~170 MB) requires internet access. Runtime loads cached model/tokenizer files only; missing cache requires successful setup preparation. |
 | BM25 index rebuild | **Per session** | BM25 indexes are rebuilt per verification session. SQLite caching avoids re-chunking but does not cache the BM25 index in memory. |
 | Batch size | **Capped** | Maximum 100 items per batch (`MAX_BATCH_ITEMS`). |
 
@@ -38,9 +38,9 @@
 
 | Limitation | Status | Details |
 |---|---|---|
-| Linux/macOS | **Untested** | The project targets Windows 10/11. Scripts use PowerShell. Some path handling may not work on Unix. |
+| Linux/macOS | **Untested** | Windows 11 is historically tested; Windows 10 is not independently verified. Scripts use PowerShell. Some path handling may not work on Unix. |
 | GPU acceleration | **Not used** | PyTorch CPU-only build. No CUDA support compiled in. |
-| GROBID dependency | **Optional** | GROBID is used for advanced citation parsing in V1 (`citation_summary`). V2 pipeline (`verify_claim`, `verify_claims`) does not require GROBID. |
+| GROBID dependency | **External V1 dependency** | All three V1 tools (`verify_document`, `verify_bibliography`, `citation_summary`) invoke RefChecker and require GROBID when execution needs PDF parsing. V2 (`verify_claim`, `verify_claims`) does not require GROBID. |
 | Python version | **3.13+ required** | Only Python 3.13.7 has been independently verified. Bootstrap script prefers 3.13 via `py` launcher. |
 | Windows temp permissions | **Workaround needed** | Default pytest temp directory (`C:\Users\...\AppData\Local\Temp\pytest-of-user`) may have permission issues. Use `--basetemp=<writable>` when running tests. |
 

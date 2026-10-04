@@ -4,22 +4,20 @@
 
 | Version | Supported |
 |---------|-----------|
-| main (2.x) | Yes |
-| legacy/server_v1_working.py | No — historical baseline, not maintained |
+| Current `main` | Active code; package 0.1.0 / V2 pipeline 2.0.0 |
+| Historical development-only legacy backup | Not distributed or maintained in this publication repository |
 
 ## Reporting a Vulnerability
 
-To report a security vulnerability, **do not use public issues**.
+The owner has selected **GitHub Private Vulnerability Reporting** as the official security-reporting channel for the published repository. The GitHub repository has not yet been created, so this feature is **not confirmed enabled or operational**.
 
-1. Go to the **Security** tab of this repository: `https://github.com/<owner>/citation-verifier-mcp/security`
-2. Click **Report a vulnerability** and fill in the advisory form.
-3. Alternatively, email the maintainer listed in `pyproject.toml`.
+**Publication gate:** Before the first public publication, enable and verify private vulnerability reporting for the actual repository. Public publication/release is **BLOCKED** until a valid private security-reporting channel is enabled and verified. After verification, use the published repository's private vulnerability-reporting interface.
 
-You should receive an initial response within 48 hours. If the report is accepted, a patch will be prioritized. You will be notified of the fix and asked for **embargo** until a release is published.
+Do not disclose exploit details, credentials or sensitive documents in public issues. No personal email or invented contact address is published here; the placeholder author email in `pyproject.toml` is not a security contact. No response-time or embargo commitment is made.
 
 ## Threat Model
 
-**Citation Verifier MCP** is a local-first Model Context Protocol (MCP) server. The core design principle is: **all inference runs on the user's machine — no API keys, no cloud calls, no data leaves the device.**
+**Citation Verifier MCP** is a local-first MCP server. V2 NLI inference runs locally on CPU with cached model files. This is not an end-to-end offline or data-locality guarantee: source retrieval, RefChecker lookups, configurable remote GROBID and setup downloads have separate network boundaries.
 
 ### What runs locally
 
@@ -27,23 +25,27 @@ You should receive an initial response within 48 hours. If the report is accepte
 |-----------|----------|---------|
 | MCP server (`server.py`) | User's machine | stdio JSON-RPC only (no TCP listener) |
 | V2 verification pipeline (`citation_v2/`) | User's machine | CPU-only PyTorch + local model |
-| NLI model (DeBERTa) | Local cache (`~/.cache/huggingface/`) | Download once at first run |
+| NLI model (DeBERTa) | Local cache (`~/.cache/huggingface/`) | Prepared during setup; runtime loads cached files only |
 | GROBID | Local Docker container | Application connects via `127.0.0.1:8070`; Docker Compose binds to `127.0.0.1` (loopback only) |
-| academic-refchecker | Local subprocess in `.venv` | None (invoked via `subprocess.run`) |
+| academic-refchecker | Local subprocess in `.venv` | Can query external academic metadata services; subprocess isolation is not network isolation |
 
 ### Data flow
 
 1. The MCP client (e.g., Kilo) sends a claim and source request to `server.py` over **stdio** (pipe-based JSON-RPC). The server does **not** listen on any TCP port.
 2. Sources provided by the user (arXiv IDs, PDF URLs, local files) are downloaded or read into local cache (`cache/`).
 3. Verification is performed entirely on the local machine using a local PyTorch model.
-4. Results are returned to the MCP client over stdio. **No data is transmitted to third parties.**
+4. Results return to the MCP client over stdio. That client's handling, including any cloud model/provider, is outside this server's privacy guarantee.
+5. Source hosts receive requested arXiv identifiers/PDF URLs and connection metadata. RefChecker can send reference titles, authors, identifiers and other lookup fields to services such as Crossref, DBLP, arXiv, Semantic Scholar and OpenAlex.
+6. RefChecker sends PDFs to the configured GROBID endpoint. The supplied Compose setup is loopback-only; a remote `GROBID_URL` sends document content off-device. Existing containers can have different bindings.
+7. pip installs, model preparation and Docker image pulls contact external services. NLI runtime itself uses `local_files_only=True` and has no model-download fallback.
 
-### What the project does NOT do
+### Scope of local processing
 
-- No API keys, tokens, or credentials are required or stored.
-- No telemetry is collected.
-- No inference results are sent to any server.
-- The server does not listen on any network port.
+- No API key is required for the server's local NLI inference. RefChecker has optional provider/API settings; inherited user configuration can affect its behavior.
+- Project application code has no explicit telemetry integration; this does not establish the behavior of dependencies or the MCP client.
+- `server.py` uses stdio and does not expose a TCP MCP listener. GROBID is a separate HTTP service.
+- Claims/evidence are processed locally by V2 NLI and persisted locally in cache/SQLite. Protect those records and client logs. Local PDF verification with cached weights avoids source/model downloads, but V1 lookups and client behavior have separate boundaries.
+- V2 source-loader SSRF safeguards do not establish equivalent controls for RefChecker or GROBID. Local file inputs are not confined to the repository: the server can read files permitted by its OS account.
 
 ## Security Controls
 
@@ -79,13 +81,13 @@ The `academic-refchecker.exe` CLI (used for V1 bibliography features: `verify_do
 | Temp file cleanup | Report files are deleted after successful parse |
 | Environment | `build_environment()` sets `PYTHONIOENCODING`, `PYTHONUTF8`, and `NO_PROXY` for local hosts |
 
-The RefChecker runs in a separate process with no access to the MCP server's Python interpreter state.
+The RefChecker runs in a separate process rather than the MCP interpreter. It retains the OS permissions and inherited environment of that process; this is not a filesystem or network sandbox.
 
 ### 3. Cache Path Safety — `citation_v2/cache.py`
 
 | Control | Implementation |
 |---------|---------------|
-| Filename sanitization | `safe_filename()` strips path separators and directory components, rejecting `../../secret.txt`, `C:\Windows\file` |
+| Filename sanitization | `safe_filename()` reduces paths to basenames, preventing directory traversal from `../../secret.txt`, `C:\Windows\file` |
 | Deletion boundary check | `delete_cache_file()` verifies the target path is inside the cache directory via `Path.resolve()` + `relative_to()` |
 | Atomic writes | `tempfile.mkstemp()` + `os.replace()` — prevents half-written cache files on crash |
 | Content-addressable storage | SHA-256 content hash used as filename — corruption is detected on read by re-hashing |
@@ -101,7 +103,7 @@ The RefChecker runs in a separate process with no access to the MCP server's Pyt
 | Numerical validation | Non-finite logits/probabilities raise `NLIModelError` |
 | Probability sanity | Scores are validated to sum to 1.0 within tolerance |
 
-The NLI model (`cross-encoder/nli-deberta-v3-small`) is downloaded **once** from Hugging Face Hub at first run (~170 MB). Subsequent runs use the local cache entirely offline.
+Bootstrap attempts to prepare the NLI tokenizer and model (`cross-encoder/nli-deberta-v3-small`, approximately 170 MB) from Hugging Face. It can complete with a preparation warning; runtime will not fetch missing files. Successful cache preparation is required for V2 inference.
 
 ### 5. Database Safety — `citation_v2/database.py`
 
@@ -129,10 +131,10 @@ Users running this server in a multi-user or restricted environment should:
 
 1. **Run the server under a dedicated user account** with minimal filesystem permissions.
 2. **Restrict the `.venv` directory** to the running user only (e.g., `chmod 700 .venv`).
-3. **GROBID binds to loopback**: Docker Compose binds GROBID to `127.0.0.1` by default (configured in `docker-compose.yml`). If you need to expose it externally, explicitly set `GROBID_HOST_PORT` and configure your firewall accordingly.
+3. **GROBID binds to loopback**: Docker Compose binds GROBID to `127.0.0.1` by default (configured in `docker-compose.yml`). `GROBID_HOST_PORT` changes the port, not the loopback bind address. Review remote endpoints and existing container bindings separately.
 4. **Set resource limits** if using in a shared environment: memory (~2 GB for model + inference), CPU, and disk space for cache.
 5. **Review environment variables**: `GROBID_URL` is read from the environment. Ensure no unexpected proxy or redirect is configured.
-6. **Clear cache periodically**: cached downloads in `cache/` may contain sensitive source PDFs. Clear with `cache/` directory when no longer needed.
+6. **Protect retained data**: PDFs, canonical text and verification records can contain sensitive material. Inspect actual `CITATION_MCP_HOME` and database/cache paths, ownership and retention needs. Before cleanup, stop owned writers and preserve any required backup; do not delete shared or production data by default.
 
 ## Known Limitations
 

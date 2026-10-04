@@ -8,7 +8,8 @@ project, their licenses, and the project's relationship to each.
 **Copyright holder:** Huu Phuc Le
 **Year:** 2026
 
-**Last verified:** 2026-10-02
+**License inventory recorded:** 2026-10-02
+**Runtime/publication descriptions reviewed:** 2026-10-04
 
 ---
 
@@ -16,7 +17,7 @@ project, their licenses, and the project's relationship to each.
 
 The Citation Verifier MCP distributes **only its own source code**. All
 third-party components — Python packages, Docker images, and machine-learning
-model weights — are installed or downloaded by the end user at runtime. None
+model weights — are installed or downloaded by the end user during setup or explicit service startup. None
 are vendored or bundled into this repository.
 
 Third-party components remain under their respective licenses. The MIT license
@@ -27,7 +28,7 @@ model weights, or external services.
 
 ## Direct Runtime Dependencies
 
-Listed in `requirements.txt`. Installed via `pip install -r requirements.txt`.
+Listed in `requirements.txt`. Bootstrap installs the CPU-only PyTorch build from the PyTorch CPU index before the remaining requirements; a manual requirements install needs that index as documented in [README](README.md#dependencies).
 
 ### 1. pdfplumber
 
@@ -101,11 +102,11 @@ Listed in `requirements.txt`. Installed via `pip install -r requirements.txt`.
 | **Version** | 2.14.0+cpu |
 | **License** | Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0 AND MIT |
 | **Author** | PyTorch Team |
-| **Package source** | PyPI: `torch==2.14.0+cpu` (from PyTorch CPU index) |
+| **Package source** | PyTorch CPU index: `torch==2.14.0+cpu` |
 | **License source** | PyPI metadata (License-Expression); <https://pytorch.org> |
 | **How used** | Imported as `import torch` in `citation_v2/nli.py` — NLI inference backend |
 | **Redistributed?** | No — installed via pip |
-| **Obligations** | Composite license: primarily Apache 2.0; LLVM exception for some components; BSD for others. No AGPL/copyleft restrictions that affect this project. NOTICE retention if redistributing. |
+| **Obligations** | Composite license: primarily Apache 2.0; LLVM exception for some components; BSD for others. Retain applicable notices when redistributing; consult the component license files. |
 
 **Note:** The CPU-only build (`+cpu`) is installed from the PyTorch CPU index.
 The project requires no GPU support.
@@ -135,7 +136,7 @@ The project requires no GPU support.
 | **Package source** | PyPI: `sentencepiece==0.2.2` |
 | **License source** | PyPI metadata (License-Expression: Apache-2.0); <https://github.com/google/sentencepiece> |
 | **How used** | Required by transformers for DeBERTa tokenizer |
-| **Redistributed?** | No — installed via pip (as transitive dep of transformers) |
+| **Redistributed?** | No — installed via pip as a declared direct dependency |
 | **Obligations** | Apache 2.0 — no copyleft. |
 
 ---
@@ -153,9 +154,9 @@ The project requires no GPU support.
 | **Source** | PyPI: `academic-refchecker==3.0.190`; GitHub: `markrussinovich/refchecker` |
 | **License source** | PyPI metadata (License-Expression: MIT); verified license file in dist-info (MIT, Copyright (c) 2025 RefChecker) |
 | **How used** | Invoked as external CLI via `subprocess.run()` in `server.py` (not imported as a Python module) |
-| **Installed** | Via bootstrap.ps1 (`pip install academic-refchecker`) into user's `.venv` |
+| **Installed** | Via bootstrap.ps1 (`pip install academic-refchecker==3.0.190`) into user's `.venv` |
 | **Redistributed?** | No — installed into user's `.venv` via bootstrap.ps1 |
-| **Obligations** | MIT — copyright notice retention in source distributions only. No copyleft. |
+| **Obligations** | MIT; see the component license text for redistribution terms. |
 
 **Important distinction:** The project invokes `academic-refchecker.exe` as a
 **separate external process** via `subprocess.run()`. It does not import or
@@ -167,13 +168,7 @@ packages in its dependency tree:
 - `fuzzywuzzy==0.18.0` — **GNU General Public License v2 (GPLv2)**
 - `python-Levenshtein==0.27.5` / `Levenshtein==0.27.5` — **GNU GPL-2.0-or-later**
 
-These are listed in academic-refchecker's `requirements` and installed into
-the same `.venv`. Since the project invokes academic-refchecker via
-`subprocess.run()` (a process boundary), the GPL's derivative-work provision
-does not extend to this project's MIT-licensed code under ordinary legal
-interpretation. However, users who redistribute the `.venv` as a bundle should
-review GPLv2's source-availability obligations. **The project does not
-redistribute academic-refchecker or its dependencies.**
+These packages are installed into the same `.venv` as RefChecker. The server invokes RefChecker as a subprocess; that is an implementation fact, not a determination of GPL compatibility. The publication repository does not bundle RefChecker or these dependencies. Redistribution of a complete environment or other combined package requires a separate review of the applicable licenses.
 
 ---
 
@@ -201,7 +196,7 @@ GROBID.
 
 ---
 
-## Model Weights (Downloaded at Runtime)
+## Model Weights (Prepared During Setup)
 
 ### 10. NLI Model: cross-encoder/nli-deberta-v3-small
 
@@ -215,13 +210,11 @@ GROBID.
 | **License source** | Hugging Face model card (License: apache-2.0) |
 | **Base model** | `microsoft/deberta-v3-small` (MIT-licensed) |
 | **Training data** | SNLI + MultiNLI datasets |
-| **How used** | Downloaded and cached locally via `transformers`/`sentence-transformers` on first run; ~0.1B parameter model, ~170 MB download |
-| **Redistributed?** | No — downloaded at runtime from Hugging Face Hub; NOT bundled in repository |
+| **How used** | Prepared by bootstrap using `transformers`; runtime loads tokenizer and model with `local_files_only=True`; ~0.1B parameter model, ~170 MB download |
+| **Redistributed?** | No — downloaded during setup from Hugging Face Hub; not bundled in repository |
 | **Obligations** | Apache 2.0 — no redistribution obligation for local use. Model weights are not redistributed by this project. |
 
-**Privacy note:** The model is downloaded once from Hugging Face Hub (~170 MB).
-Subsequent runs use the local cache. No model data or inference results are
-sent to any server. Model is used entirely offline after initial download.
+**Privacy note:** NLI inference processes claims/evidence locally using cached files. Bootstrap can contact Hugging Face to prepare the model; runtime has no download fallback. This does not make source retrieval, RefChecker metadata lookups, remote GROBID or the MCP client offline. See [SECURITY.md](SECURITY.md).
 
 ### 11. NLI Model Base: microsoft/deberta-v3-small
 
@@ -231,7 +224,7 @@ sent to any server. Model is used entirely offline after initial download.
 | **License** | MIT |
 | **Source** | Hugging Face Hub: <https://huggingface.co/microsoft/deberta-v3-small> |
 | **How used** | Base model that `cross-encoder/nli-deberta-v3-small` was fine-tuned from |
-| **Redistributed?** | No — downloaded at runtime |
+| **Redistributed?** | No; base-model provenance only, no separate base-model download in application code |
 
 ---
 
@@ -245,7 +238,7 @@ sent to any server. Model is used entirely offline after initial download.
 | **Version (was installed)** | 1.28.2 |
 | **License (was)** | GNU Affero General Public License v3.0 (dual-licensed: AGPL-3.0 **or** Artifex Commercial License) |
 | **Author** | Artifex Software, Inc. |
-| **Removal confirmed** | TASK 20A (commit `81d99f0`) — `refactor: replace PyMuPDF with pdfplumber` |
+| **Historical migration** | TASK 20A in the development repository; its commit is not a publication-history reference |
 | **License source** | PyPI metadata (<https://pymupdf.io/licensing>) — historical reference only |
 
 **Removal justification (verified, not just requirements.txt edit):**
@@ -274,28 +267,15 @@ The migration to `pdfplumber` is verified complete at the code level:
 6. **`pymupdf` removed from `scripts/bootstrap.ps1` and `scripts/doctor.ps1`:**
    All import checks updated to `pdfplumber`.
 
-7. **`legacy/server_v1_working.py` preserved unchanged:** Per owner directive,
-   the legacy file is intentionally left in place and is the only remaining
-   location of historical code. It does not represent active runtime
-   behavior and is excluded from the public license scope per the
-   repository hygiene rules.
+7. **Historical legacy backup excluded:** `legacy/server_v1_working.py` is absent from the publication tree and reachable history. A development-only backup is not part of this release.
 
-**Note:** The existing `.venv` may still contain `pymupdf` installed as a
-leftover from before the migration. It is no longer a declared dependency and
-no production code imports it. Fresh installs via `pip install -r requirements.txt`
-will not install PyMuPDF. To remove from an existing venv:
-```
-pip uninstall pymupdf
-```
-
-**Status:** **FULLY REMOVED.** The AGPL-3.0 license obligation that previously
-blocked MIT licensing of the combined work is eliminated.
+**Current status:** PyMuPDF is not declared in either runtime manifest and is not imported by production/test code. This describes the source publication; it does not certify arbitrary existing environments or other redistribution packages.
 
 ---
 
 ## Development Dependencies
 
-Listed in `requirements-dev.txt`.
+Declared in `pyproject.toml` under `[project.optional-dependencies].dev` and mirrored in `requirements-dev.txt`.
 
 ### 12. reportlab (BSD-3-Clause, test-only dev dependency)
 
@@ -313,7 +293,7 @@ Listed in `requirements-dev.txt`.
 
 **Why reportlab:** `pdfplumber` is a read-only library and cannot create PDFs.
 Tests require synthetic PDF fixture generation. reportlab is BSD-3-Clause
-and fully compatible with MIT.
+as disclosed in its license file.
 
 ### 13. pypdf (BSD-3-Clause, test-only dev dependency)
 
@@ -425,36 +405,13 @@ They are listed for completeness. None are redistributed by this project
 | six | 1.17.0 | MIT | License-Expression | Transitive via python-dateutil |
 | python-dateutil | 2.9.0.post0 | BSD-3-Clause AND MIT | License-Expression | Transitive via academic-refchecker |
 
-**Note on GPL transitive dependencies:** `fuzzywuzzy` (GPLv2) and
-`python-Levenshtein` (GPL-2.0-or-later) are in academic-refchecker's dependency
-tree. These are GPL-licensed. Since academic-refchecker is invoked as a separate
-subprocess (not imported), the GPL copyleft effect does not extend to this
-project's MIT code. However, if a user bundles the full `.venv` for
-redistribution, GPL compliance obligations for those packages would apply
-through academic-refchecker's distribution, not through this project.
+**Note on GPL transitive dependencies:** `fuzzywuzzy` (GPLv2) and `python-Levenshtein` / `Levenshtein` (GPL-2.0-or-later) remain disclosed. A subprocess boundary alone does not establish a compatibility conclusion.
 
 ---
 
-## License Compatibility Summary
+## License Review Scope
 
-| License | Compatible with MIT distribution? | Notes |
-|---|---|---|
-| MIT | ✅ Yes | No restrictions |
-| Apache-2.0 | ✅ Yes | Patent grant; NOTICE retention if redistributing |
-| Apache-2.0 (model weights) | ✅ Yes | No redistribution obligation for local use |
-| BSD (2/3-clause) | ✅ Yes | Minimal restrictions |
-| BSD-2-Clause (LLVM, torch) | ✅ Yes | Part of torch distribution |
-| 0BSD (chardet) | ✅ Yes | Permissive |
-| MIT-CMU (Pillow) | ✅ Yes | Permissive variant |
-| PSF (Python stdlib) | ✅ Yes | Permissive |
-| ISC (shellingham) | ✅ Yes | Permissive |
-| MPL-2.0 (certifi, tqdm) | ✅ Yes (file-level) | File-level copyleft; compatible for separate dependency |
-| Apache-2.0 AND CNRI-Python (regex) | ✅ Yes | Compatible |
-| BSD-3-Clause AND MIT AND Zlib AND CC0-1.0 (numpy) | ✅ Yes | Compatible |
-| Apache-2.0 OR BSD-3-Clause (cryptography) | ✅ Yes | Dual-licensed; either option is permissive |
-| **GPLv2** (fuzzywuzzy) | ⚠️ **Process boundary** | GPL copyleft does not extend to MIT code across subprocess boundary; but bundling the `.venv` triggers GPL obligations via academic-refchecker |
-| **GPL-2.0-or-later** (Levenshtein) | ⚠️ **Process boundary** | Same as fuzzywuzzy |
-| **AGPL-3.0 (PyMuPDF)** | ❌ **REMOVED** | Was a blocking dependency. Now fully removed from all dependency manifests and production/test code. See Removed Dependencies above. |
+Project-owned source is MIT-licensed. The inventory above retains the component license identities, including GPL and MPL dependencies. No third-party packages, images or weights are bundled in this source publication. This document does not certify license compatibility of a redistributed `.venv`, container bundle or other combined distribution; review that packaging separately against the actual license texts.
 
 ---
 
@@ -465,9 +422,9 @@ All third-party components are installed or downloaded by the end user via:
 
 - `pip install -r requirements.txt` (Python runtime packages)
 - `pip install -r requirements-dev.txt` (development dependencies)
-- `pip install academic-refchecker` (RefChecker CLI, via bootstrap.ps1)
+- `pip install academic-refchecker==3.0.190` (RefChecker CLI, via bootstrap.ps1)
 - `docker compose up -d` (GROBID Docker image)
-- Hugging Face Hub download at first run (NLI model weights, ~170 MB)
+- Hugging Face Hub preparation during bootstrap (NLI model weights, ~170 MB)
 
 The project only distributes its own source code. Third-party components
 remain under their respective licenses.
@@ -479,33 +436,18 @@ remain under their respective licenses.
 **No model weights, DB files, or third-party binaries are tracked in Git.**
 
 Verified via `git ls-files`:
-- 55 tracked files total
+- 56 tracked files total (including the approved banner)
 - All files ≤ 100 KB
 - No `.safetensors`, `.bin`, `.pt`, `.pth`, `.gguf`, or model weight files
 - No `.pdf` files tracked (test fixtures generated at test time)
 - No `.db` or `.sqlite` files tracked
-- No API keys, tokens, or credentials in any tracked file
+- Historical TASK 24R credential scan found only test fixtures; no new credential scan or complete release audit is claimed here
 
 ---
 
-## Legacy File
+## Historical Legacy File
 
-### `legacy/server_v1_working.py`
-
-| Field | Value |
-|---|---|
-| **File** | `legacy/server_v1_working.py` |
-| **Size** | 403 lines, ~9.5 KB |
-| **License** | MIT (project-owned; historical baseline of V1 server) |
-| **Contents** | Historical backup of the original V1 server |
-| **Sensitive content scan** | ✅ No credentials, API keys, tokens, or personal filesystem paths |
-| **Personal paths** | ✅ None (`BASE_DIR` derived from `Path(__file__).resolve().parent`) |
-| **Provenance** | Historical baseline of the original working V1 server (per TASK 05) |
-| **Inclusion in public repo** | Excluded from public release per owner directive. Untracked via `git rm --cached` and listed in `.gitignore`. The file remains in Git history (reachable via `git show c4171fe:legacy/server_v1_working.py` and earlier commits). See TASK 23 for the full audit. |
-
-**Note:** This file does not import PyMuPDF. It uses RefChecker via subprocess
-and does not contain AGPL-licensed code. Its inclusion as a historical
-reference is documented per PACKAGING_AND_GITHUB_PLAN.md TASK 05.
+`legacy/server_v1_working.py` is excluded from this publication repository's tracked tree and reachable history. Earlier descriptions of a retained file and development commit `c4171fe` concerned the development repository, not this source publication. The separate development backup was not modified by this documentation review.
 
 ---
 
@@ -519,11 +461,11 @@ reference is documented per PACKAGING_AND_GITHUB_PLAN.md TASK 05.
 | 4 | requests | 2.34.2 | Apache-2.0 | Import — HTTP client | No |
 | 5 | PyTorch (CPU) | 2.14.0+cpu | Apache-2.0 (composite) | Import — NLI inference | No |
 | 6 | transformers | 5.17.0 | Apache-2.0 | Import — model loading | No |
-| 7 | sentencepiece | 0.2.2 | Apache-2.0 | Transitive (via transformers) | No |
+| 7 | sentencepiece | 0.2.2 | Apache-2.0 | Direct dependency; tokenizer support | No |
 | 8 | academic-refchecker | 3.0.190 | MIT | Subprocess CLI — V1 bibliography | No |
 | 9 | GROBID (Docker) | 0.9.1-crf | Apache-2.0 | Docker container | No |
-| 10 | NLI model | nli-deberta-v3-small | Apache-2.0 | Download at runtime | No |
-| 11 | DeBERTa-v3-small (base) | v3-small | MIT | Download at runtime | No |
+| 10 | NLI model | nli-deberta-v3-small | Apache-2.0 | Setup download; offline runtime loading | No |
+| 11 | DeBERTa-v3-small (base) | v3-small | MIT | Model provenance; no separate download | No |
 | 12 | reportlab | 4.2.5 | BSD-3-Clause | Dev-only import — test PDF creation | No |
 | 13 | pypdf | 6.19.0 | BSD-3-Clause | Dev-only import — encrypted test PDFs | No |
 | 14 | pytest | 8.3.5 | MIT | Dev-only test runner | No |
@@ -533,21 +475,6 @@ reference is documented per PACKAGING_AND_GITHUB_PLAN.md TASK 05.
 
 ---
 
-## Compliance Verdict
+## Publication Scope
 
-**MIT licensing of project-owned code is compatible with all current dependencies.**
-
-- The sole AGPL-3.0 dependency (PyMuPDF) has been **fully removed** from all
-  production code, test code, dependency manifests, and scripts.
-- All remaining direct and transitive dependencies are under permissive licenses
-  (MIT, Apache-2.0, BSD family, ISC, 0BSD, MPL-2.0, PSF) that are compatible
-  with MIT distribution.
-- The GPL-licensed transitive dependencies (fuzzywuzzy, python-Levenshtein) of
-  academic-refchecker are behind a subprocess boundary and are not redistributed
-  by this project.
-
-**Unresolved compliance question:** If a user redistributes the complete `.venv`
-(bundle including academic-refchecker and its GPL dependencies), GPL obligations
-may apply through academic-refchecker's distribution. This is outside this
-project's control — users are responsible for compliance with packages they
-install and redistribute.
+This source publication applies MIT to project-owned code and keeps third-party license disclosures separate. PyMuPDF is absent from current manifests and production/test imports; RefChecker's GPL dependencies remain disclosed and are not bundled. No blanket compatibility conclusion is made for direct/transitive dependencies or complete environment redistribution. Packaging third-party components requires its own license review.

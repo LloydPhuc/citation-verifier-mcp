@@ -33,7 +33,7 @@ Check references and inspect whether a paper supports a factual claim, directly 
 |---------|-------------|
 | **Local inference** | DeBERTa-v3 NLI model runs on CPU (PyTorch); no GPU required |
 | **Exact provenance** | Evidence quotes include character offsets and page numbers; `PASS` requires verified provenance |
-| **Relevance-gated contradictions** | Strong contradiction verdicts require topical evidence overlap; prevents unrelated claims from producing misleading `FAIL` |
+| **Relevance-gated contradictions** | Strong contradiction verdicts require topical evidence overlap; reduces some unrelated-evidence artifacts (heuristic coverage ≥0.30) |
 | **Five MCP tools** | `verify_document`, `verify_bibliography`, `citation_summary`, `verify_claim`, `verify_claims` |
 | **Batch reuse** | Multiple claims on the same source reuse loaded text, chunks, and BM25 index |
 | **Failure isolation** | One failed claim in a batch does not abort others |
@@ -203,7 +203,7 @@ Named entry printed by the helper (illustrative paths; insert directly under `mc
 
 Merge into `~/.config/kilo/kilo.jsonc` (global) or `<repo>/.kilo/kilo.jsonc` (project-specific, overrides global). The helper separately prints the optional `"citation-verifier_*": "allow"` permission entry; merge it into the existing `permission` object if desired. It never edits your configuration.
 
-Reload Kilo: `Ctrl+Shift+P` → "Developer: Reload Window".
+Reload the client after config changes; in VS Code, use **Developer: Reload Window**. Environment changes require fully exiting the host and launching it from the configured shell; a window reload may retain old values.
 
 Verify in Kilo: MCP panel shows `citation-verifier` as **Connected** with 5 tools.
 
@@ -296,7 +296,7 @@ These calls use arXiv `2607.22693`, the historical regression source. Response e
 >
 > - `PASS` is **forbidden** unless `provenance_verified == true`.
 > - Numeric claims must match evidence numbers exactly.
-> - `FAIL` requires **both** strong contradiction **and** topical relevance — irrelevant evidence cannot produce `FAIL`.
+> - `FAIL` requires **both** strong contradiction **and** topical relevance — evidence below coverage 0.30 is excluded. This heuristic does not guarantee correct verdicts; synonym-based contradictions can be missed.
 > - Source/network/extraction failures → `ABSTAIN`, never `FAIL`.
 > - `ABSTAIN` means "could not verify," **not** "claim is false."
 
@@ -366,7 +366,7 @@ No API key is required for this server's local claim inference. Local inference 
 
 V2 stores PDFs, canonical text and verification records in local cache/SQLite. A local PDF with an already cached model can avoid source/model downloads, but the complete application is not guaranteed offline. Review external-service behavior before submitting confidential documents.
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting. Its broader local-only wording needs a separate policy correction.
+See [SECURITY.md](SECURITY.md) for vulnerability reporting. The policy describes network boundaries and the planned GitHub private reporting channel and its publication gate.
 
 - GROBID binds to `127.0.0.1` by default (loopback only)
 - The V2 source loader blocks non-public destinations and enforces download size limits, redirect limits and timeouts

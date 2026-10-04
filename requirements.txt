@@ -8,7 +8,8 @@
 #   pip install -r requirements.txt
 #
 # Note: academic-refchecker is an external CLI tool invoked via subprocess.
-# It must be installed separately (not on PyPI). See bootstrap.ps1.
+# Bootstrap installs academic-refchecker==3.0.190 separately with pip when
+# its executable is missing. See scripts/bootstrap.ps1.
 
 # MCP protocol server
 mcp==2.2.0
@@ -22,7 +23,7 @@ rank-bm25==0.2.2
 # HTTP client for source/document loading
 requests==2.34.2
 
-# PyTorch (CPU variant tested; CUDA variant also compatible)
+# PyTorch (CPU-only build tested; NLI runtime enforces CPU)
 torch==2.14.0+cpu
 
 # Hugging Face Transformers (DeBERTa-v3 NLI model)

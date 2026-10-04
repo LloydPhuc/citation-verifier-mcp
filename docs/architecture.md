@@ -112,7 +112,7 @@ A **strong contradiction** candidate is only counted if its evidence passage sha
 
 **Scope:** The relevance gate filters **only** strong contradiction candidates. Conflict and contradiction-dominance decisions use that filtered set, so the gate can change their outcomes. It does not independently validate entailments, moderate support, numbers or provenance.
 
-**Rationale:** NLI models assign high contradiction scores to evidence that is simply *unrelated* to the claim (semantic distance mistaken for logical contradiction). Requiring minimum content-word overlap prevents unrelated evidence from producing false `FAIL` verdicts.
+**Rationale:** NLI models assign high contradiction scores to evidence that is simply *unrelated* to the claim (semantic distance mistaken for logical contradiction). The heuristic coverage threshold of 0.30 reduces some unrelated-evidence artifacts; it does not guarantee correct verdicts. Genuine contradictions expressed with synonyms can be missed.
 
 **Limitations:** See [Limitations](limitations.md#semantic-verification) for known gaps including synonym-based contradiction filtering, ASCII-only tokenization, and heuristic threshold status.
 
