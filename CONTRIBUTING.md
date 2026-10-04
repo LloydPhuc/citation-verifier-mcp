@@ -8,8 +8,8 @@ Thank you for your interest in contributing to Citation Verifier MCP! This docum
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Windows 10/11 | — | Linux/macOS untested |
-| Python | 3.13+ (3.12 minimum) | `py` launcher preferred |
+| Windows | Windows 11 tested | Windows 10, Linux/macOS not independently verified |
+| Python | 3.13+ | `py` launcher preferred |
 | Docker Desktop | Latest | For GROBID (V1 features only) |
 | Git | 2.x | For cloning and versioning |
 
@@ -23,6 +23,8 @@ git checkout -b fix/add-feature
 
 ### 2. Bootstrap the Environment
 
+For an existing checkout, inspect `.venv` ownership/version and follow the recovery precautions below before running bootstrap; an incomplete environment can be deleted by the script.
+
 ```powershell
 .\scripts\bootstrap.ps1
 ```
@@ -33,7 +35,11 @@ This script:
 - Pre-downloads the NLI model (`cross-encoder/nli-deberta-v3-small`)
 - Runs import and compilation checks
 
-**Force recreate:** `.\scripts\bootstrap.ps1 -Force`
+**Supported Python:** `pyproject.toml` requires >=3.13; historical regression used 3.13.7. Bootstrap currently accepts 3.12, may select the launcher default instead of the probed 3.13, and does not validate a reused venv version. Check `.\.venv\Scripts\python.exe --version` before use. Executable compatibility defects require a separate fix before publication.
+
+**Environment recovery:** Diagnose first. Bootstrap changes installed packages and deletes an incomplete existing `.venv`; `-Force` deletes and recreates it. Confirm the resolved path is this checkout's private environment, stop clients using it, record installed packages and preserve custom files in a separate backup before recovery. Prefer a fresh checkout when ownership is uncertain.
+
+**Model preparation:** Bootstrap attempts to cache the tokenizer and model. Its warning about downloading on first verification is inaccurate: runtime uses `local_files_only=True`. Resolve setup/cache errors before V2 verification.
 
 **If model download stalls:**
 ```powershell
@@ -55,7 +61,9 @@ The final line will be `OVERALL: READY`, `OVERALL: PARTIALLY READY`, or `OVERALL
 .\scripts\start.ps1
 ```
 
-Stop GROBID:
+Before starting or restarting, inspect endpoint/container ownership. A healthy external service can be reused only with its owner's approval. Confirm the managed container belongs to this checkout and is not shared; its Compose label alone does not establish exclusive ownership.
+
+Stop only your exclusively owned managed GROBID:
 ```powershell
 .\scripts\stop.ps1
 ```
@@ -68,7 +76,7 @@ The bootstrap script installs runtime dependencies only. Dev tools (ruff, mypy, 
 .venv\Scripts\pip install -e ".[dev]"
 ```
 
-**Note:** The codebase currently contains pre-existing lint violations (35 as of this writing). New contributions should not introduce additional violations; fixing existing ones is appreciated.
+**Note:** The codebase currently contains pre-existing lint violations (33 reported by the historical TASK 24R audit; not rerun here). New contributions should not introduce additional violations; fixing existing ones is appreciated.
 
 ---
 
@@ -80,7 +88,7 @@ Add tests to `tests/test_<module>.py`:
 
 ```powershell
 # Unit tests for a specific module
-.venv\Scripts\python -m pytest tests/test_<module>.py -m "unit and not slow" -v --basetemp=.\.pytest-tmp
+.venv\Scripts\python -m pytest tests/test_batch.py -m "unit and not slow" -v --basetemp=.\.pytest-tmp
 ```
 
 ### 2. Implement the Change
@@ -112,6 +120,8 @@ Edit the relevant file in `citation_v2/` or `server.py`. Follow the code style b
 
 **Windows temp workaround:** The default pytest temp directory (`C:\Users\...\AppData\Local\Temp\pytest-of-user`) may have permission issues. Always specify `--basetemp` with a writable path like `.\.pytest-tmp`.
 
+Use a dedicated disposable `--basetemp`: pytest may delete its contents. In a separate test shell, verify `CITATION_MCP_HOME` and `CITATION_MCP_DB_PATH` point to disposable test data; `tests/conftest.py` preserves inherited values. Never use production paths.
+
 ### 5. Commit and Push
 
 ```powershell
@@ -142,15 +152,17 @@ Commit messages should follow [Conventional Commits](https://www.conventionalcom
 
 ## Testing Guide
 
+Historical evidence: TASK 24R recorded **547 passed** on Windows 11 / Python 3.13.7 with isolated writable temporary paths, separately from live V1/GROBID and V2/arXiv checks. These results are not rerun here. Markers are registered in `pyproject.toml`; current tests have no `network`, `docker`, `slow` or `integration` decorators. Inspect collection before treating marker selection as live coverage.
+
 ### Test Markers
 
 | Marker | Description | External Dependencies |
 |--------|-------------|----------------------|
 | `unit` | Fast tests with no external dependencies | None |
-| `integration` | Tests requiring multiple components | Docker, network |
+| `integration` | Multiple-component tests; may use mocks | Depends on the test |
 | `network` | Tests requiring internet access | Internet |
 | `docker` | Tests requiring Docker/GROBID | Docker, GROBID |
-| `slow` | Long-running tests (excluded by default with `-m "not slow"`) | Varies |
+| `slow` | Long-running tests (exclude explicitly with `-m "not slow"`) | Varies |
 | `regression` | Regression coverage for known issues | Varies |
 
 ### Test Commands
@@ -162,7 +174,7 @@ Commit messages should follow [Conventional Commits](https://www.conventionalcom
 # Run a specific test file
 .venv\Scripts\python -m pytest tests/test_source_loader.py -m "unit and not slow" -v --basetemp=.\.pytest-tmp
 
-# Run integration tests (requires Docker + GROBID)
+# Select integration-marked tests; inspect collection and fixtures first
 .venv\Scripts\python -m pytest -m "integration" --basetemp=.\.pytest-tmp
 
 # Run the smoke test (MCP discovery)
@@ -171,7 +183,7 @@ Commit messages should follow [Conventional Commits](https://www.conventionalcom
 
 ### NLI Model Tests
 
-Tests requiring the NLI model are marked `not slow` and can run without network. The model is cached locally at `~/.cache/huggingface/hub/models/`.
+`not slow` is a selection expression, not a marker. Current NLI tests exercise validation/label helpers and pipeline tests use mocked scoring; they do not prove live model inference. A separate live inference check requires cached tokenizer/model files. Hugging Face uses its hub cache (commonly `~/.cache/huggingface/hub/`; environment settings can override it).
 
 ---
 
@@ -188,9 +200,9 @@ Tests requiring the NLI model are marked `not slow` and can run without network.
 
 Before submitting a PR, ensure:
 
-- [ ] `ruff check .` passes with no errors
+- [ ] Run `ruff check .`; document the pre-existing baseline and introduce no new violations
 - [ ] `ruff format --check .` passes
-- [ ] `mypy citation_v2/ server.py` passes
+- [ ] Run `mypy citation_v2/ server.py`; document existing debt and introduce no new type errors
 - [ ] All unit tests pass: `.venv\Scripts\python -m pytest -m "unit and not slow" -q --basetemp=.\.pytest-tmp`
 - [ ] New code is covered by tests
 - [ ] No files in `.gitignore` are committed
@@ -205,7 +217,7 @@ citation-verifier-mcp/
 ├── server.py                      # MCP server entry point
 ├── citation_v2/                   # V2 verification pipeline
 │   ├── config.py                  # Environment-driven configuration
-│   ├── source_loader.py           # Source resolution (arXiv, URL, PDF, text)
+│   ├── source_loader.py           # Source resolution (arXiv, public direct PDF URL, local PDF)
 │   ├── text_extractor.py          # PDF text extraction (pdfplumber)
 │   ├── chunker.py                 # Text splitting and validation
 │   ├── cache.py                   # File caching (raw + normalized text)
@@ -217,8 +229,6 @@ citation-verifier-mcp/
 │   ├── batch.py                   # Batch processing with source reuse
 │   ├── schemas.py                 # Public MCP response schemas
 │   └── normalizer.py              # Text normalization
-├── legacy/
-│   └── server_v1_working.py       # V1 server (uses academic-refchecker CLI)
 ├── tests/                         # pytest test suite (unit + integration)
 ├── scripts/                       # PowerShell scripts
 ├── docs/                          # Documentation

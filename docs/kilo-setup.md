@@ -10,11 +10,11 @@ tools directly from your chat.
 
 Before starting, ensure you have:
 
-1. **Windows 10 or 11** (Linux/macOS may work but is untested).
+1. **Windows 11 historically tested; Windows 10 not independently verified** (Linux/macOS may work but is untested).
 2. **Docker Desktop** with Compose support (for GROBID).
 3. **Python 3.13+** (the bootstrap script uses the Windows `py` launcher and
-   prefers Python 3.13; Python 3.12 is the minimum).
-4. Internet access for the **initial** dependency and model download
+   prefers Python 3.13, but currently accepts unsupported 3.12). Only 3.13.7 is independently verified; package metadata requires >=3.13.
+4. Internet access for dependency/model/image setup, remote PDFs and RefChecker metadata lookups. Initial model download
    (~170 MB for the DeBERTa NLI model).
 
 No API keys or tokens are required. Inference runs entirely locally.
@@ -59,13 +59,15 @@ Replace `<your-username>` with the actual repository owner.
 
 ### 2. Bootstrap the Environment
 
+For an existing checkout, inspect `.venv` ownership/version and follow the recovery precautions below before running bootstrap; an incomplete environment can be deleted by the script.
+
 ```powershell
 .\scripts\bootstrap.ps1
 ```
 
 This script:
 
-- Detects Python 3.13 (or 3.12+) via the `py` launcher.
+- Probes Python 3.13 via `py`, then checks fallback interpreters. Its 3.12 minimum and unpinned launcher default are known executable defects; use Python >=3.13.
 - Creates an isolated `.venv` in the repository.
 - Installs all dependencies from `requirements.txt`, including PyTorch CPU.
 - Installs `academic-refchecker` (the bibliography verification CLI).
@@ -73,8 +75,9 @@ This script:
   Hugging Face cache.
 - Runs import and compilation checks.
 
-**Safe to rerun.** If `.venv` already exists and is valid, it is reused.
-Use `.\scripts\bootstrap.ps1 -Force` to recreate from scratch.
+An existing environment with `Scripts\python.exe` is reused without a version check; verify its Python version. Bootstrap changes installed dependencies and deletes an incomplete `.venv`. `-Force` deletes the existing environment: diagnose first, confirm exclusive ownership and the resolved checkout path, stop clients and preserve package inventory/custom files before recreation. See [safe recovery](troubleshooting.md#module-import-errors).
+
+Bootstrap can warn about model preparation and still complete. Runtime never downloads missing model files (`local_files_only=True`); resolve preparation failures before V2 use.
 
 **Troubleshooting env var:**
 
@@ -99,13 +102,12 @@ shared team container), `start.ps1` will detect it and skip starting a new one.
 To use a custom port, set the environment variable first:
 
 ```powershell
-$env:GROBID_HOST_PORT=9070
+$env:GROBID_HOST_PORT="9070"
+$env:GROBID_URL="http://127.0.0.1:9070"
 .\scripts\start.ps1
 ```
 
-> **Important:** Setting an environment variable in PowerShell only affects
-> new processes. If Kilo is already running, you must restart Kilo (or reload
-> the VS Code window) for the variable to take effect.
+> **Environment changes:** Fully exit the client host and launch it from the shell containing the variables. Reloading a window may keep the original host environment.
 
 ### 4. Run Diagnostics
 
@@ -141,87 +143,51 @@ Kilo's configuration can live in two places:
 | Global: `~/.config/kilo/kilo.jsonc` | N/A | Applies to all projects |
 | Project: `<repo>/.kilo/kilo.jsonc` | Yes | Per-project settings (recommended for testing) |
 
-#### Global configuration
+#### Global or project configuration
 
-Open `~/.config/kilo/kilo.jsonc` in your editor. It typically looks like:
+Insert the helper-generated named entry directly under `mcp`. Use its absolute paths in either location; the paths below are illustrative. Preserve other server entries and existing settings. The helper only prints configuration and never edits it.
 
 ```jsonc
 {
-  // ...existing config...
   "mcp": {
-    "servers": {
-      // ...other MCP servers...
+    "citation-verifier": {
+      "type": "local",
+      "command": [
+        "C:\\path\\to\\your\\repo\\.venv\\Scripts\\python.exe",
+        "C:\\path\\to\\your\\repo\\server.py"
+      ],
+      "enabled": true,
+      "timeout": 600000
     }
-  },
-  "permission": {
-    // ...existing permissions...
   }
 }
 ```
 
-Insert the generated entry **inside** the `mcp` > `servers` object:
+The generated fields are `type: "local"`, a two-element `command` array (venv Python, server.py), `enabled: true` and `timeout: 600000` milliseconds. The RefChecker subprocess itself has a 600-second limit; changing the client timeout does not extend that limit.
+
+Permissions are optional. To allow these tools without prompts, merge the named permission into the existing top-level `permission` object, retaining all other entries. A complete illustrative config is:
 
 ```jsonc
 {
   "mcp": {
-    "servers": {
-      "citation-verifier": {
-        "type": "local",
-        "command": [
-          "C:\\path\\to\\your\\repo\\.venv\\Scripts\\python.exe",
-          "C:\\path\\to\\your\\repo\\server.py"
-        ],
-        "enabled": true,
-        "timeout": 600000
-      }
+    "citation-verifier": {
+      "type": "local",
+      "command": [
+        "C:\\path\\to\\your\\repo\\.venv\\Scripts\\python.exe",
+        "C:\\path\\to\\your\\repo\\server.py"
+      ],
+      "enabled": true,
+      "timeout": 600000
     }
   },
   "permission": {
+    "other_server_*": "allow",
     "citation-verifier_*": "allow"
   }
 }
 ```
 
-#### Project configuration (recommended for testing)
-
-To avoid touching your global config, create `<repo>/.kilo/kilo.jsonc`:
-
-```jsonc
-{
-  "mcp": {
-    "servers": {
-      "citation-verifier": {
-        "type": "local",
-        "command": [
-          ".\\.venv\\Scripts\\python.exe",
-          "server.py"
-        ],
-        "enabled": true,
-        "timeout": 600000
-      }
-    }
-  }
-}
-```
-
-> **Merging note:** When adding the `permission` section, **merge** it into
-> the existing object. Do not replace the entire `permission` object unless you
-> want to reset all permissions. For example, if you already have:
->
-> ```jsonc
-> "permission": {
->   "other_server_*": "allow"
-> }
-> ```
->
-> Change it to:
->
-> ```jsonc
-> "permission": {
->   "other_server_*": "allow",
->   "citation-verifier_*": "allow"
-> }
-> ```
+Project configuration overrides global as described by the helper. Check both files if settings conflict; no actual Kilo configuration is changed by this guide.
 
 ### 7. Reload the VS Code / Kilo Window
 
@@ -230,25 +196,17 @@ After saving the config file, reload Kilo:
 1. Press `Ctrl+Shift+P` to open the command palette.
 2. Type "Reload Window" and select **Developer: Reload Window**.
 
-Kilo re-reads the configuration on window reload. Without this step, the
-new MCP server will not be picked up.
+Restart/reload the client after saving configuration. Exact controls vary by client version. This reload advice concerns configuration files; environment changes require a freshly launched host process.
 
 ### 8. Verify MCP Server Connection
 
-1. Open Kilo (`Ctrl+Shift+P` → "Kilo: Focus" or open the Kilo sidebar).
+1. Open the client's Kilo view; names and controls vary by version.
 2. Create a new session or open an existing one.
 3. In the session, open the MCP tools view (often an icon or menu labeled
    "Tools" or "MCP").
 4. Confirm `citation-verifier` appears as **Connected**.
 
-You can also run `tools/list` directly in a Kilo session — the five Citation
-Verifier tools should be listed:
-
-- `verify_document`
-- `verify_bibliography`
-- `citation_summary`
-- `verify_claim`
-- `verify_claims`
+`tools/list` is an MCP protocol request, not a guaranteed chat command. Check the client's advertised tools or run `.\scripts\smoke_test.ps1` independently of Kilo. Discovery does not require GROBID, network or model weights. See [timeout diagnostics](troubleshooting.md#mcp-shows-connected-but-tools-are-unavailable).
 
 ### 9. Create a New Kilo Session
 
@@ -298,13 +256,15 @@ BM25 index (internally tracked as `source_loads=1, bm25_indexes_built=1`).
 
 ## Supported Tools
 
-| Tool | Purpose |
-|---|---|
-| `verify_document` | Verify all citations in a local PDF, arXiv paper, or web-hosted PDF. |
-| `verify_bibliography` | Check a bibliography block or BibTeX file for errors and issues. |
-| `citation_summary` | Summarize citation quality for a paper (e.g., arXiv ID). |
-| `verify_claim` | Verify a single factual claim against a source (arXiv ID, URL, or PDF path). |
-| `verify_claims` | Verify multiple claims in one batch, with same-source reuse. |
+| Tool | Required arguments | Optional arguments |
+|---|---|---|
+| `verify_document` | `source: string` | None |
+| `verify_bibliography` | `path: string` (existing local file) | None |
+| `citation_summary` | `source: string` | None |
+| `verify_claim` | `claim: string`, `source: string` | `top_k: integer` |
+| `verify_claims` | `claims: array` of objects | `top_k: integer` |
+
+Discovery advertises batch items as generic objects (`additionalProperties: true`); runtime requires each item's `claim` and `source` strings. Maximum batch: 100. `top_k` is 1-20, default 5 unless `CITATION_BM25_TOP_K` overrides it. V1 accepts RefChecker source identifiers/files, not arbitrary inline bibliography blocks. V2 accepts local PDFs, supported arXiv IDs/URLs and public direct PDF URLs; no inline text, BibTeX, LaTeX or DOI-only full-text resolution. See [tool reference](../README.md#tools).
 
 ---
 
@@ -329,7 +289,7 @@ Both default to `8070`. No environment variables needed.
 
 ```powershell
 $env:GROBID_HOST_PORT=9070
-$env:GROBID_URL=http://127.0.0.1:9070
+$env:GROBID_URL="http://127.0.0.1:9070"
 .\scripts\start.ps1
 ```
 
@@ -341,11 +301,8 @@ where to find the service. Setting only `GROBID_HOST_PORT` is not sufficient.
 
 - Environment variables set in a PowerShell prompt only apply to processes
   launched **after** the assignment in the **same** shell.
-- If Kilo is already running, setting a variable in a new PowerShell window
-  will **not** update Kilo's environment. You must restart Kilo or reload
-  the window (`Developer: Reload Window`) after setting environment variables.
-- To make environment variables persistent for Kilo, set them in your system
-  environment or in a VS Code workspace settings file.
+- If Kilo is already running, a new shell assignment does not update its environment. Fully exit all host instances, then launch the host from the configured shell. A window reload may reuse the old environment.
+- Persistent user environment settings affect future processes. Generic VS Code workspace settings are not a verified way to inject this server's environment.
 
 ---
 
@@ -355,29 +312,20 @@ where to find the service. Setting only `GROBID_HOST_PORT` is not sufficient.
 
 - Verify the JSON is valid. A malformed JSONC entry can cause **all** MCP
   servers to disappear from Kilo.
-- Validate your config with a JSON parser. Remove all comments and trailing
-  commas, then test with `python -m json.tool`.
-- Ensure the `mcp.servers` object is correctly nested.
+- Use a JSONC-aware editor/parser. `python -m json.tool` accepts strict JSON only; validate a separate comment-free copy rather than stripping the original configuration.
+- Place `citation-verifier` directly inside `mcp` as shown above.
 - Reload the Kilo window after fixing.
 
 ### MCP shows "disabled"
 
 - Check that `"enabled": true` is present in the server entry.
-- In some Kilo versions, toggling the server off in the MCP panel sets
-  `"enabled": false`. Re-enable it.
+- Review the active entry and the client's enabled state; UI controls vary by version.
 
 ### MCP shows "connected" but tools are unavailable
 
-- The server process may have crashed on startup. Run `server.py` directly to
-  see error output:
-  ```powershell
-  .\.venv\Scripts\python.exe server.py
-  ```
-- Check that `.venv` exists and has all dependencies installed (run
-  `.\scripts\bootstrap.ps1`).
-- Check that GROBID is running and healthy (run `.\scripts\start.ps1` and
-  verify `http://127.0.0.1:8070/api/isalive` returns `true`).
-- Run `.\scripts\doctor.ps1` for a full diagnostic.
+- Inspect client logs and generated executable paths. Run `.\scripts\smoke_test.ps1` for real protocol discovery; running `server.py` interactively waits for stdio input.
+- Diagnose dependencies with `.\scripts\doctor.ps1` before recovery. GROBID is needed for V1 execution when parsing PDFs, not tool discovery.
+- Follow [Troubleshooting](troubleshooting.md) for ownership and backup checks before bootstrap or container changes.
 
 ### "No such file or directory" or Python path errors
 
@@ -385,8 +333,8 @@ where to find the service. Setting only `GROBID_HOST_PORT` is not sufficient.
   your actual repository and `.venv`.
 - Ensure `.venv` was created by bootstrap (`.\scripts\bootstrap.ps1`).
 - Do not hardcode paths from your development machine into the config. Always
-  use paths generated by `print_kilo_config.ps1` or relative paths from the
-  repository root.
+  use paths generated by `print_kilo_config.ps1` with absolute paths for the
+  current checkout.
 
 ### Missing virtual environment
 
@@ -403,11 +351,9 @@ where to find the service. Setting only `GROBID_HOST_PORT` is not sufficient.
 
 ### Changes require a VS Code window reload
 
-- Kilo reads the config file on startup. Any change to `kilo.jsonc` (global
-  or project) requires a window reload:
+- After saving `kilo.jsonc`, restart/reload the client. In VS Code, use:
   `Ctrl+Shift+P` → "Developer: Reload Window".
-- Setting environment variables also requires a reload if Kilo is already
-  running.
+- Environment changes require fully exiting and freshly launching the host from the configured shell; a reload alone may retain old values.
 
 ### HF Xet / CAS download issue
 
@@ -432,7 +378,7 @@ To allow all Citation Verifier tools without prompting on each call:
 }
 ```
 
-This grants the MCP server permission to execute all its registered tools.
+This allows client calls matching the server tool pattern without prompts. Review the tools' file/network behavior before enabling it.
 **Merge** this into your existing `permission` object rather than replacing the
 entire object, which would remove permissions from other servers.
 
@@ -442,25 +388,25 @@ entire object, which would remove permissions from other servers.
 
 After setup, run this checklist:
 
-1. `.\scripts\doctor.ps1` reports `OVERALL: READY`.
+1. Review each category in `.\scripts\doctor.ps1`, rather than treating its overall status as inference readiness. A V2-only setup can lack GROBID; discovery does not load model weights.
 2. `.\scripts\print_kilo_config.ps1` shows the correct repo paths.
 3. Kilo's MCP panel shows `citation-verifier` as **Connected**.
-4. In a Kilo session, `tools/list` returns all five tools.
-5. `verify_claim("2607.22693", ...)` returns a verdict with provenance.
+4. The client advertises all five tools; independent protocol discovery succeeds.
+5. Call `verify_claim` with the JSON `claim`/`source` example above; inspect verdict, reason, source_state and evidence rather than assuming every request succeeds.
 
 ---
 
 ## Notes
 
 - This project does **not** include a native Windows GUI or `.exe` installer.
-  The supported launch mechanism is the `.cmd` launcher for GROBID startup
+  The provided launch mechanism is the `.cmd` launcher for GROBID startup
   and the PowerShell scripts for all other operations.
 - The Citation Verifier runs server-side (as an MCP stdio server). No
   additional client software beyond Kilo and Docker is required.
 - If you encounter issues with Kilo integration, run the direct MCP discovery
   test:
   ```powershell
-  .\.venv\Scripts\python.exe -c "from mcp import ClientSession, StdioServerParameters; from mcp.client.stdio import stdio_client; ..."
+  .\scripts\smoke_test.ps1
   ```
   This confirms the server starts and advertises all five tools independently
   of Kilo.
