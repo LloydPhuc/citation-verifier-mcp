@@ -7,7 +7,7 @@
 | DOI full-text resolution | **Not implemented** | DOIs are not currently resolved to full text. Claims citing DOI-only sources return `ABSTAIN`. |
 | Title/author → reference resolution | **Not implemented** | The system cannot look up a paper by title or author alone. Must provide arXiv ID, URL, or local file. |
 | URL full-text extraction | **Partial** | Works for directly accessible PDFs. Does not render JavaScript-heavy pages or resolve paywalled content. |
-| Plain text sources | **Supported** | Any string is treated as raw text. No citation extraction is performed on plain text. |
+| Plain text / BibTeX / LaTeX as V2 full text | **Not supported** | Claim tools require a local PDF, arXiv identifier/URL or direct PDF URL. V1 bibliography files are handled separately by RefChecker. |
 
 ## Semantic Verification
 
@@ -17,6 +17,13 @@
 | Approximate matching | **Not available** | Provenance is exact character matching only. Paraphrased or reformatted quotes will fail verification. |
 | Multi-document verification | **Not supported** | Each claim is verified against a single source. Cross-source evidence synthesis is not available. |
 | Fact-checking scope | **Single claim** | The system verifies whether a source supports a claim. It does not validate the claim against external knowledge. |
+| Lexical coverage is a heuristic | **By design** | The relevance gate uses claim-word coverage (fraction of claim content-word stems found in evidence) to filter strong contradiction candidates. This is a lexical heuristic, not a semantic similarity measure. |
+| Coverage threshold | **Heuristic** | The threshold is `0.30` (≥30% of claim content-word stems must appear in evidence). It was chosen to satisfy Cases A–D and has **not** been calibrated on a broader benchmark corpus. May need adjustment for claims of different lengths. |
+| Synonym-based contradictions | **Accepted risk** | Genuine contradictions with no shared stems are filtered out and may produce `ABSTAIN` when no other signal remains. A true contradiction may be missed; the gate does not guarantee the absence of false verdicts. |
+| Custom stemmer | **Simplified** | The stemmer is a lightweight suffix-stripping implementation (three-stage: plurals, verb endings, derivational suffixes). It is **not** a full Porter stemmer and does **not** handle all morphological variants. It normalizes high-frequency cases (e.g., *hallucinated* ≡ *hallucinations*, *citations* ≡ *citation*). |
+| ASCII-only tokenization | **Known limitation** | Content-word extraction uses `[a-zA-Z]+`; non-ASCII letters and digits are excluded, and hyphens split compounds into separate tokens. Scientific terms may not be fully captured. |
+| NLI score variability | **Not a guarantee** | NLI scores may vary across environments (different `transformers` versions, model cache state). Verdicts may differ between runs. Scores are probabilistic, not guaranteed correct. |
+| No benchmark accuracy | **Not established** | The system has **not** been evaluated for benchmark-wide accuracy on a large corpus. The 0.30 threshold and the relevance gate are heuristics validated against a small set of real-source cases (Cases A–F), not a systematic benchmark. |
 
 ## Performance
 
@@ -42,9 +49,9 @@
 | Limitation | Status | Details |
 |---|---|---|
 | `ABSTAIN` ≠ false | **Fundamental** | `ABSTAIN` means the system could not verify the claim from the source. It does not mean the claim is false. |
-| Provenance ambiguity | **Conservative** | Quotes occurring multiple times in the source are treated as ambiguous and fail provenance verification. |
+| Provenance ambiguity | **Context-dependent** | Quote-location searches can reject multiple occurrences when uniqueness is required. The V2 pipeline verifies supplied exact spans; repeated text alone does not invalidate a known span. |
 | Context window limits | **Fixed** | NLI model processes evidence windows of 1600 characters. Longer contexts are truncated. |
-| Threshold rigidity | **By design** | Thresholds (0.70 entailment/contradiction, 0.50 moderate) are fixed by default. They can be tuned via environment variables. |
+| Threshold rigidity | **By design** | Strong entailment/contradiction cutoffs default to 0.70 and are configurable through environment variables. Moderate cutoff 0.50 and relevance coverage 0.30 are code constants. |
 
 ## Caching Limitations
 

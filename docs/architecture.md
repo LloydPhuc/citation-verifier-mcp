@@ -2,43 +2,41 @@
 
 ## Overview
 
-The Citation Verifier MCP is a local-first Model Context Protocol (MCP) server that verifies whether a source supports a factual claim. It runs entirely on the user's machine — no API keys, no cloud calls, no data leaves the device.
+Citation Verifier MCP exposes three bibliography tools through academic-refchecker (V1) and two claim-evidence tools through a local DeBERTa pipeline (V2). Inference runs locally; remote source retrieval and RefChecker metadata queries can contact external services. GROBID runs locally by default. See [Network and privacy](../README.md#network-and-privacy).
 
 ```mermaid
 flowchart TD
-    A[MCP Client / Kilo] -->|stdio JSON-RPC| B[server.py]
-    B --> C[Tool Dispatcher]
-    C -->|verify_claim| D[verify_claim_core]
-    C -->|verify_claims| E[verify_claims_batch]
-    C -->|verify_document| F[verify_bibliography_core]
-    C -->|verify_bibliography| G[verify_bibliography_core]
-    C -->|citation_summary| H[citation_summary_core]
-    D --> D1[Source Loader]
-    D --> D2[Text Extractor]
-    D --> D3[Chunker]
-    D --> D4[BM25 Retriever]
-    D --> D5[NLI Engine]
-    D --> D6[Provenance Checker]
-    D --> D7[Decision Policy]
-    D --> D8[Database Persistence]
+    Client["MCP client"] --> Server["server.py · stdio dispatcher"]
+    Server -->|"verify_document / verify_bibliography / citation_summary"| Ref["V1 · academic-refchecker CLI"]
+    Ref --> Grobid["GROBID · local by default"]
+    Ref --> Metadata["External academic metadata"]
+    Ref --> Report["Report / normalized summary"]
+    Server -->|"verify_claim / verify_claims"| Load["V2 · source loading"]
+    Load --> Text["PDF text extraction"] --> Chunks["Chunking / SQLite reuse"]
+    Chunks --> BM25["BM25 retrieval"] --> Windows["Evidence windows"]
+    Windows --> Provenance["Exact span verification"] --> NLI["Local DeBERTa NLI scoring"]
+    NLI --> Gate["Claim-word coverage · strong contradictions only"]
+    Gate --> Decision["Deterministic verdict + numeric guard"]
+    Decision --> DB["Verification record · SQLite"]
+    Decision --> Response["MCP response"]
 ```
 
 ## Pipeline Stages
 
 ### 1. Source Loading (`source_loader.py`)
 
-Accepts the following source identifiers:
+The V2 loader accepts the following source identifiers. V1 file formats are handled separately by RefChecker.
 
 | Input Type | Detection | Loader |
 |---|---|---|
-| arXiv ID | `^\d{4}\.\d{4,5}(?:v\d+)?$` or `^[A-Za-z0-9.\-]+/\d{7}(?:v\d+)?$` | arXiv API download |
+| arXiv ID | Modern or legacy arXiv identifier, optional version | arXiv PDF download |
 | URL | `https://...` | HTTP download with redirect handling |
 | Local PDF path | Windows drive letter or `.pdf` extension | pdfplumber extraction |
-| BibTeX | `.bib` file or inline string | BibTeX parsing |
-| LaTeX | `.tex` file or inline string | LaTeX reference extraction |
-| Plain text | Any other string | Treated as raw text source |
+
+DOI-only sources, inline plain text, BibTeX and LaTeX are not V2 full-text inputs; unsupported source types return `ABSTAIN`.
 
 **Security measures:**
+
 - SSRF protection: outbound connections are blocked to RFC1918 ranges, localhost, and link-local addresses
 - Download size limit: `MAX_SOURCE_DOWNLOAD_BYTES` (default 100 MB)
 - Redirect limit: `HTTP_MAX_REDIRECTS` (default 5)
@@ -46,12 +44,13 @@ Accepts the following source identifiers:
 
 **Caching:** Raw downloaded files are cached in `cache/raw/` with TTL (`RAW_PDF_TTL_DAYS`, default 7). Normalized text is cached in `cache/text/`.
 
-**Source document model:**
-```python
+**Source document model (field summary):**
+
+```text
 SourceDocument {
     source_input: str          # original input
     canonical_id: str          # normalized identifier
-    paper_id: str              # database paper identifier
+    paper_id: int              # database paper identifier
     content_hash: str          # SHA-256 of canonical full text
     text: str                  # canonical full text
     pages: list[ExtractedPage]  # per-page character spans
@@ -63,10 +62,11 @@ SourceDocument {
 - Uses pdfplumber (pdfminer.six backend) for PDF text extraction
 - Produces `ExtractedPage` objects with `page_number`, `start_char`, `end_char`
 - Empty pages (zero-width spans) are skipped in provenance mapping
-- Text is normalized (whitespace collapsed, Unicode normalization applied)
+- Text is conservatively normalized while retaining canonical offsets for provenance
 - Normalized text is cached in `cache/text/` keyed by content hash
 
 **Error types:**
+
 - `PDFEncryptedError` — password-protected PDFs
 - `PDFExtractionError` — general extraction failure
 - `PDFNoTextError` — PDF contains no extractable text
@@ -91,6 +91,7 @@ SourceDocument {
 - Each BM25 chunk is split into smaller evidence windows (1600 char target, 300 char overlap)
 - Each window's canonical source offsets are computed
 - Each window is verified for exact provenance before NLI scoring
+- Each window is tested for **topical relevance** to the claim (content-word coverage ≥ 0.30)
 
 ### 6. NLI Scoring (`nli.py`)
 
@@ -100,27 +101,42 @@ SourceDocument {
 - **Outputs:** entailment, contradiction, neutral scores (each 0.0–1.0)
 - Non-finite scores raise `VerificationIntegrityError`
 
-### 7. Provenance Verification (`provenance.py`)
+### 7. Relevance Gate (`verifier.py`)
+
+A **strong contradiction** candidate is only counted if its evidence passage shares meaningful topical content with the claim:
+
+1. **Content words** are extracted from both the claim and the evidence — alphabetic tokens excluding 111 English stopwords (ASCII-only; hyphens split compounds into tokens)
+2. **Stemming** normalizes morphological variants via a custom three-stage suffix-stripping stemmer (e.g., *hallucinated* ≡ *hallucinations* → *hallucinat*)
+3. **Coverage metric**: `|claim_stems ∩ evidence_stems| / |claim_stems|` — fraction of the claim's content vocabulary found in evidence
+4. **Threshold**: `MIN_CONTRADICTION_EVIDENCE_OVERLAP = 0.30`
+
+**Scope:** The relevance gate filters **only** strong contradiction candidates. Conflict and contradiction-dominance decisions use that filtered set, so the gate can change their outcomes. It does not independently validate entailments, moderate support, numbers or provenance.
+
+**Rationale:** NLI models assign high contradiction scores to evidence that is simply *unrelated* to the claim (semantic distance mistaken for logical contradiction). Requiring minimum content-word overlap prevents unrelated evidence from producing false `FAIL` verdicts.
+
+**Limitations:** See [Limitations](limitations.md#semantic-verification) for known gaps including synonym-based contradiction filtering, ASCII-only tokenization, and heuristic threshold status.
+
+### 8. Provenance Verification (`provenance.py`)
 
 - **Exact matching:** case-sensitive, no whitespace normalization, no fuzzy matching
 - `find_exact_occurrences()` — finds all exact quote positions in source text
 - `verify_exact_span()` — verifies a quote matches an exact character span
 - `verify_exact_quote()` — locates and verifies a quote, with optional uniqueness requirement
 - `page_range_for_span()` — maps character spans to physical page numbers
-- Ambiguous quotes (multiple occurrences) are flagged as `AMBIGUOUS_MULTIPLE_OCCURRENCES`
+- Quote-location searches can flag multiple occurrences as `AMBIGUOUS_MULTIPLE_OCCURRENCES`; exact supplied spans used in the V2 pipeline do not require quote uniqueness
 
-### 8. Decision Policy (`verifier.py` `_decide()`)
+### 9. Decision Policy (`verifier.py` `_decide()`)
 
 The decision engine applies a deterministic, ordered set of rules (see [Verdicts](verdicts.md) for full details).
 
-### 9. Database Persistence (`database.py`)
+### 10. Database Persistence (`database.py`)
 
 - SQLite database at `CITATION_MCP_DB_PATH` (default `data/citations.db`)
 - **Schema version:** 1 (checked at init; mismatch raises `RuntimeError`)
 - **Idempotency:** Papers and chunks keyed by content hash; re-verification reuses cached chunks
 - **Verification log:** Each verification is persisted with scores, verdict, and evidence metadata
 
-### 10. Batch Processing (`batch.py`)
+### 11. Batch Processing (`batch.py`)
 
 - Accepts up to `MAX_BATCH_ITEMS` (100) claim/source pairs
 - Groups items by source string; each unique source is loaded and chunked **once**
@@ -136,7 +152,7 @@ citation-verifier-mcp/
 ├── citation_v2/                   # Verification pipeline
 │   ├── __init__.py
 │   ├── config.py                  # Environment-driven configuration
-│   ├── source_loader.py           # Source resolution (arXiv, URL, PDF, text)
+│   ├── source_loader.py           # Source resolution (arXiv, URL, local PDF)
 │   ├── text_extractor.py          # PDF text extraction via pdfplumber
 │   ├── chunker.py                 # Text splitting and validation
 │   ├── cache.py                   # File caching (raw + normalized text)
@@ -148,8 +164,6 @@ citation-verifier-mcp/
 │   ├── batch.py                   # Batch processing with source reuse
 │   ├── schemas.py                 # Public MCP response schemas
 │   └── normalizer.py              # Text normalization
-├── legacy/
-│   └── server_v1_working.py       # V1 server using academic-refchecker CLI
 ├── tests/                         # pytest test suite (unit + integration)
 └── scripts/                       # PowerShell setup/bootstrap scripts
 ```

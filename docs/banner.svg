@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 200" width="960" height="200" role="img" aria-labelledby="title desc">
+  <title id="title">Citation Verifier MCP</title>
+  <desc id="desc">Trace citations and inspect evidence. A research tool in navy, indigo, violet and cyan.</desc>
+  <defs>
+    <linearGradient id="grad-bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="grad-accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="200" rx="12" fill="url(#grad-bg)"/>
+  <path d="M0 196H960" stroke="url(#grad-accent)" stroke-width="8"/>
+  <g fill="none" stroke="#a5b4fc" opacity="0.16">
+    <path d="M660 0V200M720 0V200M780 0V200M840 0V200M900 0V200M620 40H960M620 80H960M620 120H960M620 160H960"/>
+  </g>
+  <text x="40" y="42" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="600" letter-spacing="2.5" fill="#67e8f9">RESEARCH / EVIDENCE / PROVENANCE</text>
+  <text x="40" y="94" font-family="Segoe UI,Arial,sans-serif" font-size="36" font-weight="700" fill="#f8fafc">Citation Verifier MCP</text>
+  <text x="40" y="128" font-family="Segoe UI,Arial,sans-serif" font-size="18" fill="#e0e7ff">Trace the citation. Inspect the evidence.</text>
+  <text x="40" y="166" font-family="Consolas,monospace" font-size="12" fill="#cbd5e1">LOCAL NLI · BM25 RETRIEVAL · EXACT PROVENANCE</text>
+  <g transform="translate(755 42)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 8H70V110H0Z" fill="#0f172a" stroke="#a5b4fc" stroke-width="2"/>
+    <path d="M16 30H52M16 45H52M16 60H40M16 83H34" stroke="#818cf8" stroke-width="3"/>
+    <path d="M82 30L120 46V74C120 98 102 113 82 124C62 113 44 98 44 74V46Z" fill="#172554" stroke="url(#grad-accent)" stroke-width="3"/>
+    <path d="M64 76L77 89L103 61" stroke="#67e8f9" stroke-width="5"/>
+  </g>
+</svg>
