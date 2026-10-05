@@ -41,7 +41,7 @@ This script:
 
 **Environment recovery:** Diagnose first. Bootstrap can change installed packages when reusing a supported environment. Unsupported, broken or incomplete existing environments require an explicit recovery choice; they are not silently deleted. `-Force` deletes and recreates `.venv` only after validating the selected interpreter and expected checkout path; a linked root `.venv` is rejected. These checks do not establish ownership or create backups. Confirm exclusive ownership, stop clients, record installed packages and preserve the environment in a separate backup before choosing `-Force`. Prefer a fresh checkout when ownership is uncertain.
 
-**Model preparation:** Bootstrap attempts to cache the tokenizer and model. Its warning about downloading on first verification is inaccurate: runtime uses `local_files_only=True`. Resolve setup/cache errors before V2 verification.
+**Model preparation:** Bootstrap attempts to cache the tokenizer and model. If preparation fails, it warns that V2 verification is not ready; bootstrap can still finish the remaining setup checks. Runtime uses `local_files_only=True` and does not download missing files. Resolve setup/cache errors and rerun bootstrap before V2 verification.
 
 **If model download stalls:**
 ```powershell

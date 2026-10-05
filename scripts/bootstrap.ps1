@@ -270,6 +270,7 @@ if (Test-Path $RefCheckerExe) {
 Write-Step "5/7" "Preparing NLI model ($NLIModelId)..."
 Write-Host "  This downloads ~170MB on first run. Subsequent runs use the cache."
 
+$NLIModelReady = $false
 try {
     $modelCheck = & $VenvPython -c @"
 import sys
@@ -294,20 +295,26 @@ except Exception as e:
 "@ 2>&1
 
     $modelOutput = $modelCheck -join "`n"
-    if ($modelOutput -match 'MODEL_CACHED') {
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "NLI model preparation failed: $modelOutput"
+    } elseif ($modelOutput -match 'MODEL_CACHED') {
+        $NLIModelReady = $true
         Write-Success "NLI model already cached. No download needed."
     } elseif ($modelOutput -match 'MODEL_DOWNLOADED') {
+        $NLIModelReady = $true
         Write-Success "NLI model downloaded and cached successfully."
     } elseif ($modelOutput -match 'MODEL_ERROR') {
         Write-Warn "NLI model preparation issue: $modelOutput"
-        Write-Warn "The model will be downloaded on first verification run."
-        Write-Warn "Ensure internet connectivity is available when running verify_claim."
     } else {
         Write-Warn "Unexpected model check output: $modelOutput"
     }
 } catch {
     Write-Warn "Could not verify NLI model: $_"
-    Write-Warn "The model will be downloaded on first use."
+}
+
+if (-not $NLIModelReady) {
+    Write-Warn "V2 verification requires cached tokenizer and model files; runtime does not download them."
+    Write-Warn "Resolve the preparation/cache error and rerun .\scripts\bootstrap.ps1 before using verify_claim or verify_claims."
 }
 
 # ---------- [6/7] Checking application imports ----------
@@ -425,7 +432,11 @@ Write-Host ""
 Write-Host "  3. Configure Kilo MCP (use scripts\print_kilo_config.ps1"
 Write-Host "     when available in TASK 14)."
 Write-Host ""
-Write-Host "  The NLI model ($NLIModelId) is cached locally."
+if ($NLIModelReady) {
+    Write-Host "  The NLI model ($NLIModelId) is cached locally."
+} else {
+    Write-Warn "NLI model preparation is incomplete. V2 verification is not ready."
+}
 Write-Host "  No API keys or tokens are required for inference."
 Write-Host ""
 
