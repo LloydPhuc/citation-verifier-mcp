@@ -63,6 +63,8 @@ filterwarnings = [
 target-version = "py313"
 line-length = 100
 indent-width = 4
+
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
