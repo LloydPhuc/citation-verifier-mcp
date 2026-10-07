@@ -4,7 +4,6 @@ from typing import Any
 
 from .verifier import VerificationResult
 
-
 # ============================================================
 # Public MCP response schemas
 # ============================================================
@@ -37,6 +36,10 @@ def verification_result_to_response(
             "provenance_verified":
                 result.provenance_verified,
         }
+        if result.source_type in {"html_url", "doi_html"}:
+            evidence["page_start"] = None
+            evidence["page_end"] = None
+            evidence["coordinate_system"] = "normalized_html_text"
 
     scores = None
 
@@ -59,6 +62,9 @@ def verification_result_to_response(
 
         "claim": result.claim,
         "source": result.source,
+        "source_type": result.source_type,
+        "canonical_url": result.canonical_url,
+        "content_hash": result.content_hash,
         "canonical_id":
             result.canonical_id,
 

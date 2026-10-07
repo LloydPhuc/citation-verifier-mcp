@@ -41,7 +41,6 @@ from .verifier import (
     _score_candidates,
 )
 
-
 MAX_BATCH_ITEMS = 100
 
 
@@ -174,6 +173,9 @@ def _build_no_retrieval_result(
 ) -> VerificationResult:
     return VerificationResult(
         source=source_input,
+        source_type=source.source_type,
+        canonical_url=source.canonical_url,
+        content_hash=source.content_hash,
         canonical_id=
             source.canonical_id,
         claim=claim,
@@ -220,6 +222,9 @@ def _build_candidate_result(
     if selected is None:
         return VerificationResult(
             source=source_input,
+            source_type=source.source_type,
+            canonical_url=source.canonical_url,
+            content_hash=source.content_hash,
             canonical_id=
                 source.canonical_id,
             claim=claim,
@@ -253,6 +258,9 @@ def _build_candidate_result(
 
     return VerificationResult(
         source=source_input,
+        source_type=source.source_type,
+        canonical_url=source.canonical_url,
+        content_hash=source.content_hash,
         canonical_id=
             source.canonical_id,
         claim=claim,
@@ -415,7 +423,7 @@ def verify_claims_batch(
 
     if isinstance(
         claims,
-        (str, bytes),
+        str | bytes,
     ):
         raise ValueError(
             "claims must be a sequence of objects."

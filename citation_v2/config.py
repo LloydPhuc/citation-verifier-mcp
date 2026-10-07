@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-
 # ============================================================
 # Environment parsing helpers
 # ============================================================
@@ -147,7 +146,7 @@ TEMP_CACHE_DIR = CACHE_DIR / "temp"
 # Pipeline versioning
 # ============================================================
 
-PIPELINE_VERSION = "2.0.0"
+PIPELINE_VERSION = "2.1.0"
 
 
 # ============================================================
@@ -404,6 +403,6 @@ def runtime_summary() -> dict[str, object]:
         "nli_contradiction_threshold": NLI_CONTRADICTION_THRESHOLD,
         "raw_pdf_ttl_days": RAW_PDF_TTL_DAYS,
         "failed_temp_ttl_hours": FAILED_TEMP_TTL_HOURS,
-	"http_max_redirects": HTTP_MAX_REDIRECTS,
-	"max_source_download_bytes": MAX_SOURCE_DOWNLOAD_BYTES,
+        "http_max_redirects": HTTP_MAX_REDIRECTS,
+        "max_source_download_bytes": MAX_SOURCE_DOWNLOAD_BYTES,
     }

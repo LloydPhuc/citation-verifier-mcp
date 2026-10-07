@@ -88,7 +88,7 @@ class TestEnvFloat:
 @pytest.mark.unit
 class TestDefaults:
     def test_pipeline_version(self):
-        assert config.PIPELINE_VERSION == "2.0.0"
+        assert config.PIPELINE_VERSION == "2.1.0"
 
     def test_nli_entailment_threshold(self):
         assert config.NLI_ENTAILMENT_THRESHOLD == 0.70
@@ -228,7 +228,7 @@ class TestInitializeRuntimePaths:
 class TestRuntimeSummary:
     def test_summary_contains_expected_keys(self):
         summary = config.runtime_summary()
-        assert summary["pipeline_version"] == "2.0.0"
+        assert summary["pipeline_version"] == "2.1.0"
         assert "base_dir" in summary
         assert "database" in summary
         assert "cache_dir" in summary

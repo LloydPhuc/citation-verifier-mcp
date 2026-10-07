@@ -277,6 +277,10 @@ class VerificationResult:
 
     verification_id: int | None
 
+    source_type: str | None = None
+    canonical_url: str | None = None
+    content_hash: str | None = None
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
@@ -1359,6 +1363,9 @@ def verify_claim(
 
         return VerificationResult(
             source=source_input,
+            source_type=source.source_type,
+            canonical_url=source.canonical_url,
+            content_hash=source.content_hash,
             canonical_id=
                 source.canonical_id,
             claim=claim,
@@ -1429,6 +1436,9 @@ def verify_claim(
 
         return VerificationResult(
             source=source_input,
+            source_type=source.source_type,
+            canonical_url=source.canonical_url,
+            content_hash=source.content_hash,
             canonical_id=
                 source.canonical_id,
             claim=claim,
@@ -1462,6 +1472,9 @@ def verify_claim(
 
     return VerificationResult(
         source=source_input,
+        source_type=source.source_type,
+        canonical_url=source.canonical_url,
+        content_hash=source.content_hash,
         canonical_id=
             source.canonical_id,
         claim=claim,

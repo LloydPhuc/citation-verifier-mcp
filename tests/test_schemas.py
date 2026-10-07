@@ -69,6 +69,15 @@ class TestVerificationResultToResponse:
         )
         assert response["evidence"] is None
 
+    def test_html_evidence_uses_text_offsets_without_physical_pages(self):
+        result = self._make_result(source_type="doi_html", canonical_url="https://example.org/paper", content_hash="a" * 64)
+        response = verification_result_to_response(result, top_k=5)
+        assert response["evidence"]["page_start"] is None
+        assert response["evidence"]["page_end"] is None
+        assert response["evidence"]["coordinate_system"] == "normalized_html_text"
+        assert response["canonical_url"] == "https://example.org/paper"
+        assert response["content_hash"] == "a" * 64
+
     def test_scores_included_when_present(self):
         result = self._make_result(
             entailment_score=0.8,
