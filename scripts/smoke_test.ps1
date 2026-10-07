@@ -6,12 +6,13 @@
 .DESCRIPTION
     This script launches the real production server through stdio using the
     project's virtual environment and validates that the MCP protocol correctly
-    advertises all five required tools:
+    advertises all six required tools:
       - verify_document
       - verify_bibliography
       - citation_summary
       - verify_claim
       - verify_claims
+      - verify_reference
 
     It also inspects the input schemas for verify_claim and verify_claims
     to confirm they expose the documented required arguments.

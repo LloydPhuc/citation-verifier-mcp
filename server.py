@@ -7,16 +7,13 @@ from typing import Any
 
 from mcp.server import MCPServer
 
-from citation_v2.config import BM25_TOP_K
-
 from citation_v2.batch import verify_claims_batch
-
+from citation_v2.config import BM25_TOP_K
 from citation_v2.schemas import (
     abstain_response,
     error_response,
     verification_result_to_response,
 )
-
 from citation_v2.source_loader import (
     SourceCacheError,
     SourceDownloadError,
@@ -24,18 +21,17 @@ from citation_v2.source_loader import (
     SourceSecurityError,
     UnsupportedSourceError,
 )
-
 from citation_v2.text_extractor import (
     PDFEncryptedError,
     PDFExtractionError,
     PDFNoTextError,
 )
-
 from citation_v2.verifier import (
     VerificationInputError,
+)
+from citation_v2.verifier import (
     verify_claim as verify_claim_core,
 )
-
 
 # ============================================================
 # Configuration
@@ -431,6 +427,46 @@ def citation_summary(
 
 
 @mcp.tool()
+def verify_reference(
+    reference: str | dict[str, Any],
+    claim: str | None = None,
+    top_k: int = BM25_TOP_K,
+) -> dict[str, Any]:
+    """Check whether a DOI or citation matches a real registry record.
+
+    reference: DOI/full citation string, or object with doi, title, authors
+    (list of names), year, publisher, container_title. Exact metadata matches
+    are conservative; ambiguous results ABSTAIN. NOT_FOUND is not proof of
+    fabrication. Optionally supply claim to acquire public PDF/HTML full text
+    and run the existing evidence/provenance/NLI pipeline. Reference and claim
+    verdicts are independent. No authentication or paywall bypass.
+    """
+    from citation_v2.reference_resolver import resolve_reference
+
+    if claim is not None and (not isinstance(claim, str) or not claim.strip()):
+        return {"ok": False, "error_type": "INVALID_INPUT", "reason": "claim must be nonempty."}
+    if not isinstance(top_k, int) or isinstance(top_k, bool) or not 1 <= top_k <= 20:
+        return {"ok": False, "error_type": "INVALID_INPUT", "reason": "top_k must be 1–20."}
+    try:
+        result = resolve_reference(reference)
+    except ValueError as exc:
+        return {"ok": False, "error_type": "INVALID_INPUT", "reason": str(exc)}
+    except Exception as exc:
+        return {"ok": False, "error_type": "INTERNAL_ERROR", "reason": type(exc).__name__}
+    result["claim_verification"] = None
+    if claim is not None:
+        if result["status"] == "VERIFIED":
+            result["claim_verification"] = verify_claim(claim, result["metadata"]["doi"], top_k)
+        else:
+            result["claim_verification"] = abstain_response(
+                claim=claim, source=str(reference), source_state="REFERENCE_UNVERIFIED",
+                reason="Resolve citation identity and metadata discrepancies before checking a claim.",
+                error_type="REFERENCE_UNVERIFIED",
+            )
+    return result
+
+
+@mcp.tool()
 def verify_claim(
     claim: str,
     source: str,
@@ -464,7 +500,7 @@ def verify_claim(
 
     source:
         Local PDF path, arXiv identifier, arXiv URL,
-        or supported direct PDF URL.
+        public PDF/HTML URL, DOI/DOI URL or complete citation.
 
     top_k:
         Number of BM25 source chunks to inspect.
@@ -561,8 +597,7 @@ def verify_claim(
 
         return response
 
-    # Unsupported source type, e.g. DOI full-text resolution
-    # is not implemented yet. This is NOT evidence against claim.
+    # Unsupported source is not evidence against a claim.
     except UnsupportedSourceError as exc:
         return abstain_response(
             claim=clean_claim,

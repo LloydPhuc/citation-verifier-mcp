@@ -24,6 +24,7 @@ REQUIRED_TOOLS = {
     "citation_summary",
     "verify_claim",
     "verify_claims",
+    "verify_reference",
 }
 
 # Bounded timeouts (seconds)
@@ -134,7 +135,7 @@ class TestMCPDiscovery:
     ):
         """
         Launch the real server subprocess, establish MCP stdio connection,
-        initialize protocol, and verify all 5 required tools are advertised.
+        initialize protocol, and verify all 6 required tools are advertised.
         """
         tool_names, tool_schemas = asyncio.run(
             _run_mcp_discovery(venv_python, server_py)
@@ -160,6 +161,10 @@ class TestMCPDiscovery:
         # Verify schemas for verify_claim and verify_claims
         self._assert_verify_claim_schema(tool_schemas)
         self._assert_verify_claims_schema(tool_schemas)
+        reference_schema = tool_schemas["verify_reference"]
+        assert "reference" in reference_schema["required"]
+        assert "claim" not in reference_schema.get("required", [])
+        assert "claim" in reference_schema["properties"]
 
     def _assert_verify_claim_schema(self, tool_schemas: dict[str, dict]):
         """Verify verify_claim input schema exposes documented required arguments."""
@@ -319,7 +324,7 @@ if __name__ == "__main__":
             print(f"FAIL: Schema validation failed: {e}")
             sys.exit(1)
 
-        print("SUCCESS: All 5 required tools discovered with valid schemas.")
+        print("SUCCESS: All 6 required tools discovered with valid schemas.")
         sys.exit(0)
 
     asyncio.run(_main())
