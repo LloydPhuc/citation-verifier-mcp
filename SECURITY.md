@@ -32,10 +32,10 @@ Do not disclose exploit details, credentials or sensitive documents in public is
 ### Data flow
 
 1. The MCP client (e.g., Kilo) sends a claim and source request to `server.py` over **stdio** (pipe-based JSON-RPC). The server does **not** listen on any TCP port.
-2. Sources provided by the user (arXiv IDs, PDF URLs, local files) are downloaded or read into local cache (`cache/`).
+2. Sources provided by the user (arXiv IDs, DOI/citations, PDF/HTML URLs, local files) are resolved, downloaded or read into local cache (`cache/`). Newly acquired scholarly web content respects robots.txt, validates each redirect and has bounded download sizes; it uses no login credentials or JavaScript browser session.
 3. Verification is performed entirely on the local machine using a local PyTorch model.
 4. Results return to the MCP client over stdio. That client's handling, including any cloud model/provider, is outside this server's privacy guarantee.
-5. Source hosts receive requested arXiv identifiers/PDF URLs and connection metadata. RefChecker can send reference titles, authors, identifiers and other lookup fields to services such as Crossref, DBLP, arXiv, Semantic Scholar and OpenAlex.
+5. Source hosts receive requested arXiv identifiers/PDF/HTML URLs and connection metadata. V2 reference resolution sends supplied DOI/citation fields to Crossref or DataCite. Optional Unpaywall requests include `CITATION_UNPAYWALL_EMAIL`. RefChecker can send reference titles, authors, identifiers and other lookup fields to services such as Crossref, DBLP, arXiv, Semantic Scholar and OpenAlex. Raw acquired HTML is cached locally alongside PDFs; extracted normalized text and provenance are persisted for reuse. Remote content is treated as evidence, never as executable instructions.
 6. RefChecker sends PDFs to the configured GROBID endpoint. The supplied Compose setup is loopback-only; a remote `GROBID_URL` sends document content off-device. Existing containers can have different bindings.
 7. pip installs, model preparation and Docker image pulls contact external services. NLI runtime itself uses `local_files_only=True` and has no model-download fallback.
 
