@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-6366f1?style=flat-square)](LICENSE)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-6366f1?style=flat-square&logo=python&logoColor=white)](pyproject.toml)
-[![MCP: 5 tools](https://img.shields.io/badge/MCP-5_tools-8b5cf6?style=flat-square)](#tools)
+[![MCP: 6 tools](https://img.shields.io/badge/MCP-6_tools-8b5cf6?style=flat-square)](#tools)
 [![Windows tested](https://img.shields.io/badge/Windows-tested-0891b2?style=flat-square)](#requirements)
 
 **A local-first Model Context Protocol server for citation verification and bibliography checking.**
@@ -17,7 +17,7 @@ Check references and inspect whether a paper supports a factual claim, directly 
 
 > **Citation hallucination** is a growing problem in AI-assisted research. LLMs invent plausible-looking references that do not exist. This project provides a unified, local-first pipeline:
 >
-> 1. **Load** a supported source (local PDF, arXiv paper, or direct PDF URL)
+> 1. **Load** a supported source (local PDF, arXiv paper, public PDF/HTML URL, DOI or citation)
 > 2. **Extract** canonical PDF text
 > 3. **Retrieve** relevant evidence chunks via BM25
 > 4. **Verify** exact provenance (character-level offsets in the source)
@@ -56,13 +56,15 @@ flowchart TD
     end
     subgraph V2["V2 · Claim evidence"]
         direction TB
-        Load["Source loading → PDF text extraction"] --> Chunks["Evidence chunking → BM25 retrieval"]
+        Load["DOI/citation resolution → PDF or HTML extraction"] --> Chunks["Evidence chunking → BM25 retrieval"]
         Chunks --> NLI["Evidence windows → Local DeBERTa NLI"]
         NLI --> Guards["Exact provenance + contradiction relevance"]
         Guards --> Verdict["PASS / WARN / FAIL / ABSTAIN"]
     end
     Server -->|"3 bibliography tools"| V1
     Server -->|"2 claim tools"| V2
+    Server -->|"verify_reference"| Resolve["Crossref / DataCite metadata matching"]
+    Resolve --> Load
     classDef local fill:#eef2ff,stroke:#6366f1,color:#0f172a
     class Server,Load,Chunks,NLI,Guards,Verdict,Report,Grobid,Metadata local
 ```
@@ -82,10 +84,34 @@ Exact spans are checked before NLI scoring; the decision policy requires verifie
 | `citation_summary` | `source: string` — arXiv ID, URL, PDF, or BibTeX | Normalized stats + health grade | Quick citation health check |
 | `verify_claim` | `claim: string`, `source: string`, `top_k?: int` (default 5) | Verdict + evidence + scores | Verify one claim against a source |
 | `verify_claims` | `claims: array[{claim, source}]`, `top_k?: int` (default 5) | Batch results + reuse stats | Verify multiple claims efficiently |
+| `verify_reference` | `reference: string or metadata object`, `claim?: string`, `top_k?: int` | Reference identity, field checks, candidates and optional claim verification | Check one DOI or complete citation without a downloaded PDF |
 
-V1 accepts source identifiers or files through RefChecker; “text” means a file, not arbitrary inline source text. V2 supports local PDFs, arXiv IDs/URLs and public direct PDF URLs; DOI full-text resolution is not implemented.
+V1 accepts source identifiers or files through RefChecker; “text” means a file, not arbitrary inline source text. V2 additionally accepts DOI/DOI URLs, conservatively matched citations, and public scholarly HTML with substantial article bodies. See [DOI, citation and online sources](docs/online-sources.md) for input formats, matching limits and privacy.
 
-`top_k` is optional on the two V2 tools only: 1–20, default 5 unless `CITATION_BM25_TOP_K` overrides it. MCP discovery exposes `claims` as an array of generic objects; each item's `claim` and `source` strings are validated at runtime. Batches accept up to 100 items.
+### Verify a DOI or complete citation
+
+```json
+{"reference": "10.1371/journal.pmed.0020124"}
+```
+
+For explicit field validation, call `verify_reference` with a metadata object:
+
+```json
+{
+  "reference": {
+    "doi": "10.1371/journal.pmed.0020124",
+    "title": "Why Most Published Research Findings Are False",
+    "authors": ["John P. A. Ioannidis"],
+    "year": 2005,
+    "publisher": "Public Library of Science (PLoS)"
+  },
+  "claim": "The probability that a research finding is true depends on its statistical power."
+}
+```
+
+The outer verdict describes citation metadata; `claim_verification.verdict` describes whether acquired content supports the claim. A real DOI can have incorrect citation fields or an unsupported claim. `NOT_FOUND` and provider outages produce `ABSTAIN`, not a declaration that a paper is fake.
+
+`top_k` is optional on the two claim tools and `verify_reference`: 1–20, default 5 unless `CITATION_BM25_TOP_K` overrides it. MCP discovery exposes `claims` as an array of generic objects; each item's `claim` and `source` strings are validated at runtime. Batches accept up to 100 items.
 
 ---
 
@@ -207,7 +233,7 @@ Merge into `~/.config/kilo/kilo.jsonc` (global) or `<repo>/.kilo/kilo.jsonc` (pr
 
 Reload the client after config changes; in VS Code, use **Developer: Reload Window**. Environment changes require fully exiting the host and launching it from the configured shell; a window reload may retain old values.
 
-Verify in Kilo: MCP panel shows `citation-verifier` as **Connected** with 5 tools.
+Verify in Kilo: MCP panel shows `citation-verifier` as **Connected** with 6 tools.
 
 ---
 
@@ -310,14 +336,15 @@ These are default thresholds. Strong-score cutoffs can be configured. See [Verdi
 
 | Limitation | Status |
 |------------|--------|
-| DOI full-text resolution | Not implemented → returns `ABSTAIN` |
+| DOI full-text resolution | Public PDF/HTML acquisition; unavailable or unusable full text → `ABSTAIN` |
 | Lexical coverage is a heuristic | Claims with no content-word overlap may `ABSTAIN` even if semantically related |
 | Synonym-based contradictions | May conservatively produce `ABSTAIN` (no lexical overlap after stemming) |
 | Custom stemmer | Simplified suffix-stripper, not a general-purpose semantic model |
 | ASCII-only tokenization | Non-ASCII terms may lose characters in the relevance gate |
 | Broad benchmark accuracy | Not established; relevance threshold 0.30 is a heuristic |
 | Scanned PDFs / OCR | No OCR fallback; extractable PDF text required |
-| Title/author → reference resolution | Not implemented |
+| Title/author → reference resolution | Conservative Crossref matching; ambiguous/inexact titles → `ABSTAIN` |
+| Online HTML extraction | Static scholarly article bodies only; no JavaScript rendering or paywall bypass; completeness is heuristic |
 | Native Windows GUI / `.exe` installer | Not provided |
 | Linux/macOS support | Untested |
 | RefChecker runtime | ~5–6 min for 24 refs; external runners need ≥12 min timeout |
@@ -361,7 +388,7 @@ No API key is required for this server's local claim inference. Local inference 
 | Component | Where it runs / what may leave the machine |
 |-----------|------------------------------------------|
 | DeBERTa NLI | CPU inference uses locally cached weights (`local_files_only=True`); claims and evidence are processed locally by this component |
-| Source retrieval | arXiv IDs and PDF URLs cause outbound HTTP requests when retrieval is needed; destination servers receive the requested identifier/URL and normal connection metadata |
+| Source retrieval | arXiv IDs, DOI/citation resolution and PDF/HTML URLs cause outbound HTTP requests; registries receive DOI/citation fields and source hosts receive URLs and connection metadata. Optional Unpaywall requests include the configured email. |
 | RefChecker (V1) | A local subprocess can query external academic services, including arXiv, Crossref and DBLP; reference titles, authors, identifiers and other lookup fields may be transmitted |
 | GROBID | Local by default; RefChecker sends PDFs to the configured parsing endpoint. A remote `GROBID_URL` sends document content off the machine |
 | Setup and README assets | pip, model preparation and Docker image pulls use external services. README badges load from Shields.io through the viewer |

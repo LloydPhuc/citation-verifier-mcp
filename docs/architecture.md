@@ -2,7 +2,7 @@
 
 ## Overview
 
-Citation Verifier MCP exposes three bibliography tools through academic-refchecker (V1) and two claim-evidence tools through a local DeBERTa pipeline (V2). Inference runs locally; remote source retrieval and RefChecker metadata queries can contact external services. GROBID runs locally by default. See [Network and privacy](../README.md#network-and-privacy).
+Citation Verifier MCP exposes three bibliography tools through academic-refchecker (V1), two claim-evidence tools through a local DeBERTa pipeline (V2), and `verify_reference` for independent reference metadata checks with optional claim verification. Inference runs locally; source retrieval and metadata queries contact external services. GROBID runs locally by default. See [Network and privacy](../README.md#network-and-privacy).
 
 ```mermaid
 flowchart TD
@@ -12,7 +12,9 @@ flowchart TD
     Ref --> Metadata["External academic metadata"]
     Ref --> Report["Report / normalized summary"]
     Server -->|"verify_claim / verify_claims"| Load["V2 · source loading"]
-    Load --> Text["PDF text extraction"] --> Chunks["Chunking / SQLite reuse"]
+    Server -->|"verify_reference"| Resolve["Crossref / DataCite metadata matching"]
+    Resolve --> Load
+    Load --> Text["PDF or scholarly HTML extraction"] --> Chunks["Chunking / SQLite reuse"]
     Chunks --> BM25["BM25 retrieval"] --> Windows["Evidence windows"]
     Windows --> Provenance["Exact span verification"] --> NLI["Local DeBERTa NLI scoring"]
     NLI --> Gate["Claim-word coverage · strong contradictions only"]
@@ -32,8 +34,13 @@ The V2 loader accepts the following source identifiers. V1 file formats are hand
 | arXiv ID | Modern or legacy arXiv identifier, optional version | arXiv PDF download |
 | URL | `https://...` | HTTP download with redirect handling |
 | Local PDF path | Windows drive letter or `.pdf` extension | pdfplumber extraction |
+| DOI / DOI URL | DOI syntax and resolver URL | Crossref → DataCite fallback; bounded public full-text candidates |
+| Complete citation | Bibliographic string | Conservative Crossref title/author/year matching |
+| Scholarly HTML URL | Public HTTP(S) URL without `.pdf` suffix | Static article body extraction; publisher PDF link fallback |
 
-DOI-only sources, inline plain text, BibTeX and LaTeX are not V2 full-text inputs; unsupported source types return `ABSTAIN`.
+Inline source prose, BibTeX and LaTeX remain unsupported as V2 full text. Citation strings are metadata lookup inputs. Ambiguous references, abstract-only pages and unavailable full text produce `ABSTAIN`. See [online sources](online-sources.md).
+
+`reference_resolver.py` separates registry identity from semantic support. `web_source.py` performs bounded downloads, validates each redirect, respects robots.txt for newly acquired web sources and extracts substantial HTML bodies. HTML uses an internal synthetic page for chunking; public evidence uses normalized-text offsets with physical page fields set to null. Responses include source type, acquired URL and normalized-text SHA-256. Existing PDF evidence keeps its page coordinates.
 
 **Security measures:**
 

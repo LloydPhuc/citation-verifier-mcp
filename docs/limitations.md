@@ -4,10 +4,11 @@
 
 | Source Type | Status | Details |
 |---|---|---|
-| DOI full-text resolution | **Not implemented** | DOIs are not currently resolved to full text. Claims citing DOI-only sources return `ABSTAIN`. |
-| Title/author → reference resolution | **Not implemented** | The system cannot look up a paper by title or author alone. Must provide arXiv ID, URL, or local file. |
-| URL full-text extraction | **Partial** | Works for directly accessible PDFs. Does not render JavaScript-heavy pages or resolve paywalled content. |
-| Plain text / BibTeX / LaTeX as V2 full text | **Not supported** | Claim tools require a local PDF, arXiv identifier/URL or direct PDF URL. V1 bibliography files are handled separately by RefChecker. |
+| DOI full-text resolution | **Partial** | Crossref/DataCite metadata, publisher links and optional Unpaywall OA candidates; public PDF or supported static HTML required. Unavailable full text returns `ABSTAIN`. |
+| Title/author → reference resolution | **Conservative** | Crossref search examines up to five candidates and requires normalized title matching and corroborating fields. Ambiguity and inexact titles abstain; author-only search is not supported. |
+| URL full-text extraction | **Partial** | Public PDFs and substantial static scholarly HTML bodies. No JavaScript rendering or paywall bypass. Article-body completeness is heuristic, not a guarantee. |
+| Plain text / BibTeX / LaTeX as V2 full text | **Not supported** | Citation strings initiate metadata lookup; they are never treated as source evidence. V1 bibliography files remain handled by RefChecker. |
+| Reference authenticity | **Registry evidence only** | `NOT_FOUND` does not prove fabrication. Structured fields are checked explicitly; free-form citations have limited title/author/year corroboration and are not fully parsed. A registry record does not establish scientific truth or publication integrity. |
 
 ## Semantic Verification
 

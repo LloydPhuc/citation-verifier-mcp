@@ -31,7 +31,7 @@
    .\scripts\smoke_test.ps1
    ```
    Discovery requires installed dependencies, but no network, GROBID or model weights. An interactive `server.py` waits for stdio input and is not a discovery check. The smoke script's `-Timeout` argument is currently not used by its pytest invocation; initialization is fixed at 20 seconds in the helper. A cold import timeout does not prove a missing tool. Record the timeout and use a diagnostic with a larger initialization allowance before concluding startup is broken.
-3. Run `.\scripts\doctor.ps1` for categorized diagnostics. GROBID failures affect V1 execution, not registration of the five tools. Doctor compiles modules and may write bytecode; it is not a model-inference check.
+3. Run `.\scripts\doctor.ps1` for categorized diagnostics. GROBID failures affect V1 execution, not registration of the six tools. Doctor compiles modules and may write bytecode; it is not a model-inference check.
 4. For dependency recovery, follow [Module import errors](#module-import-errors) before running bootstrap.
 
 ## Path and Environment Issues
@@ -197,10 +197,10 @@ $env:CITATION_MCP_DB_PATH = "$PWD\data\citations.db"
 **Possible causes:** Unsupported/unavailable sources, security/download/extraction failures, missing eligible evidence, or decision thresholds.
 
 **Fix:**
-1. Check that the source is supported (supported arXiv ID/URL, public direct PDF URL, or local PDF).
+1. Check that the source is supported (arXiv ID/URL, public PDF/HTML URL, DOI, complete citation, or local PDF).
 2. Verify the source URL is publicly accessible (no authentication required).
 3. For large PDFs, ensure the file is under `MAX_SOURCE_DOWNLOAD_BYTES` (default 100 MB).
-4. Inspect `ok`, `source_state`, `reason` and `error_type`; a successfully loaded source may still return `ABSTAIN`. V2 has no arbitrary inline text, BibTeX, LaTeX or DOI-only full-text resolution.
+4. Inspect `ok`, `source_state`, `reason` and `error_type`; a successfully loaded source may still return `ABSTAIN`. DOI lookup and full-text acquisition are separate: `REFERENCE_*`, `FULL_TEXT_UNAVAILABLE` and `ABSTRACT_ONLY_OR_INCOMPLETE_HTML` identify acquisition limitations. Supply structured metadata or DOI for ambiguous citations. V2 has no arbitrary inline source prose, BibTeX or LaTeX full-text support. See [online sources](online-sources.md).
 
 ### NLI inference is slow
 

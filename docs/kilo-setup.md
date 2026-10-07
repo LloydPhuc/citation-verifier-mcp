@@ -1,7 +1,7 @@
 # Kilo MCP Integration Guide
 
 This guide walks through connecting RefSentry — Citation Verifier MCP to Kilo
-(a VS Code extension for AI-assisted coding) so you can call all five verification
+(a VS Code extension for AI-assisted coding) so you can call all six verification
 tools directly from your chat.
 
 ---
@@ -261,7 +261,7 @@ BM25 index (internally tracked as `source_loads=1, bm25_indexes_built=1`).
 | `verify_claim` | `claim: string`, `source: string` | `top_k: integer` |
 | `verify_claims` | `claims: array` of objects | `top_k: integer` |
 
-Discovery advertises batch items as generic objects (`additionalProperties: true`); runtime requires each item's `claim` and `source` strings. Maximum batch: 100. `top_k` is 1-20, default 5 unless `CITATION_BM25_TOP_K` overrides it. V1 accepts RefChecker source identifiers/files, not arbitrary inline bibliography blocks. V2 accepts local PDFs, supported arXiv IDs/URLs and public direct PDF URLs; no inline text, BibTeX, LaTeX or DOI-only full-text resolution. See [tool reference](../README.md#tools).
+Discovery advertises batch items as generic objects (`additionalProperties: true`); runtime requires each item's `claim` and `source` strings. Maximum batch: 100. `top_k` is 1-20, default 5 unless `CITATION_BM25_TOP_K` overrides it. V1 accepts RefChecker source identifiers/files, not arbitrary inline bibliography blocks. V2 accepts local PDFs, supported arXiv IDs/URLs, public PDF/HTML URLs, DOI/DOI URLs and conservatively matched citations. Inline source prose, BibTeX and LaTeX remain unsupported as full text. `verify_reference` accepts DOI/citation strings or structured metadata and an optional claim. See [tool reference](../README.md#tools) and [online sources](online-sources.md).
 
 ---
 
@@ -388,7 +388,7 @@ After setup, run this checklist:
 1. Review each category in `.\scripts\doctor.ps1`, rather than treating its overall status as inference readiness. A V2-only setup can lack GROBID; discovery does not load model weights.
 2. `.\scripts\print_kilo_config.ps1` shows the correct repo paths.
 3. Kilo's MCP panel shows `citation-verifier` as **Connected**.
-4. The client advertises all five tools; independent protocol discovery succeeds.
+4. The client advertises all six tools; independent protocol discovery succeeds.
 5. Call `verify_claim` with the JSON `claim`/`source` example above; inspect verdict, reason, source_state and evidence rather than assuming every request succeeds.
 
 ---
@@ -405,5 +405,5 @@ After setup, run this checklist:
   ```powershell
   .\scripts\smoke_test.ps1
   ```
-  This confirms the server starts and advertises all five tools independently
+  This confirms the server starts and advertises all six tools independently
   of Kilo.
