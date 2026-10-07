@@ -5,7 +5,7 @@ import json
 import os
 import re
 import socket
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import (
@@ -43,7 +43,6 @@ from .text_extractor import (
     PDFExtractionResult,
     extract_pdf_text,
 )
-
 
 # ============================================================
 # Constants
@@ -1107,6 +1106,95 @@ def _load_pdf_url(
 # Public dispatch
 # ============================================================
 
+def _load_web_source(
+    source_input: str, url: str, *, canonical_id: str,
+    force_refresh: bool, expected_metadata: dict | None = None,
+) -> SourceDocument:
+    from .reference_resolver import normalize_doi, pdf_identity_matches, title_matches
+    from .web_source import fetch_resource, html_metadata, parse_article
+
+    if not force_refresh:
+        cached = _load_cached_document(source_input=source_input, canonical_id=canonical_id)
+        if cached is not None:
+            return cached
+    resource = fetch_resource(url)
+    if resource.status != 200:
+        raise SourceDownloadError(f"Source request returned HTTP {resource.status}.")
+    if b"%PDF-" in resource.data[:1024]:
+        raw_path = save_raw_file(f"{sha256_text(canonical_id)}.pdf", resource.data)
+        extraction = extract_pdf_text(raw_path)
+        source_type = "doi_pdf" if expected_metadata else "pdf_url"
+    else:
+        if "html" not in resource.content_type.lower():
+            raise SourceLoaderError("Remote resource is neither PDF nor supported HTML.")
+        metadata = html_metadata(resource)
+        if expected_metadata:
+            found_doi = normalize_doi(metadata.get("citation_doi", "") or metadata.get("dc.identifier", ""))
+            if found_doi and found_doi != expected_metadata["doi"]:
+                raise SourceLoaderError("Resolved HTML DOI does not match requested reference.")
+            if not found_doi and not title_matches(
+                expected_metadata["title"], metadata.get("citation_title", "") or metadata.get("dc.title", "")
+            ):
+                raise SourceLoaderError("Resolved HTML identity could not be verified.")
+        try:
+            extraction, metadata = parse_article(resource)
+            source_type = "doi_html" if expected_metadata else "html_url"
+            raw_path = save_raw_file(f"{sha256_text(canonical_id)}.html", resource.data)
+        except SourceLoaderError:
+            pdf_url = metadata.get("citation_pdf_url")
+            if not pdf_url:
+                raise
+            # One publisher-declared PDF fallback; no recursive crawling.
+            pdf_resource = fetch_resource(urljoin(resource.url, pdf_url))
+            if pdf_resource.status != 200 or b"%PDF-" not in pdf_resource.data[:1024]:
+                raise SourceLoaderError("Publisher PDF link did not yield a PDF.") from None
+            raw_path = save_raw_file(f"{sha256_text(canonical_id)}.pdf", pdf_resource.data)
+            extraction = extract_pdf_text(raw_path)
+            resource = pdf_resource
+            source_type = "doi_pdf" if expected_metadata else "pdf_url"
+    if expected_metadata and source_type == "doi_pdf" and not pdf_identity_matches(
+        expected_metadata, extraction.text
+    ):
+        raise SourceLoaderError("Resolved PDF identity could not be verified.")
+    return _persist_extraction(
+        source_input=source_input, canonical_id=canonical_id, source_type=source_type,
+        extraction=extraction, canonical_url=resource.url, raw_path=raw_path,
+    )
+
+
+def _load_reference(source_input: str, *, force_refresh: bool) -> SourceDocument:
+    from .reference_resolver import full_text_candidates, normalize_doi, resolve_reference
+
+    doi = normalize_doi(source_input)
+    doi_only = len(source_input.split()) == 1 and source_input.lower().startswith(
+        ("10.", "doi:", "https://doi.org/", "http://doi.org/", "https://dx.doi.org/")
+    )
+    if doi and doi_only and not force_refresh:
+        cached = _load_cached_document(source_input=source_input, canonical_id="doi:" + doi)
+        if cached is not None:
+            return cached
+
+    resolution = resolve_reference(source_input)
+    if resolution["status"] != "VERIFIED":
+        raise SourceLoaderError(f"REFERENCE_{resolution['status']}: {resolution['reason']}")
+    record = resolution["metadata"]
+    canonical_id = "doi:" + record["doi"]
+    if not force_refresh:
+        cached = _load_cached_document(source_input=source_input, canonical_id=canonical_id)
+        if cached is not None:
+            return cached
+    failures = []
+    for url in full_text_candidates(record):
+        try:
+            return _load_web_source(
+                source_input, url, canonical_id=canonical_id, force_refresh=force_refresh,
+                expected_metadata=record,
+            )
+        except (SourceLoaderError, PDFExtractionError) as exc:
+            failures.append(str(exc))
+    raise SourceLoaderError("FULL_TEXT_UNAVAILABLE: reference exists, but no usable public full text. "
+                            + " | ".join(failures))
+
 def load_source(
     source: str | Path,
     *,
@@ -1116,13 +1204,12 @@ def load_source(
     """
     Load a source into canonical FULL_TEXT representation.
 
-    Supported in this phase:
+    Supported:
       - local PDF path
       - arXiv ID
       - arXiv abs/pdf URL
-      - direct public HTTP(S) PDF URL
-
-    DOI resolution is intentionally not implemented yet.
+      - public HTTP(S) PDF or scholarly HTML URL
+      - DOI, DOI URL or complete citation (conservative metadata matching)
     """
 
     if isinstance(source, Path):
@@ -1158,8 +1245,12 @@ def load_source(
         expanded
     )
 
+    try:
+        path_exists = candidate_path.exists()
+    except OSError:
+        path_exists = False  # Long citations / DOI strings are not filesystem paths.
     if (
-        candidate_path.exists()
+        path_exists
         or _WINDOWS_DRIVE_RE.match(
             source_text
         )
@@ -1193,6 +1284,11 @@ def load_source(
     # URL
     # --------------------------------------------------------
 
+    from .reference_resolver import normalize_doi
+
+    if normalize_doi(source_text):
+        return _load_reference(source_text, force_refresh=force_refresh)
+
     parsed = urlparse(
         source_text
     )
@@ -1215,23 +1311,18 @@ def load_source(
                 force_refresh=force_refresh,
             )
 
-        return _load_pdf_url(
-            source_text,
-            source_text,
-            force_refresh=force_refresh,
-        )
+        if parsed.path.lower().endswith(".pdf"):
+            return _load_pdf_url(source_text, source_text, force_refresh=force_refresh)
+        url = _canonicalize_http_url(source_text)
+        return _load_web_source(source_text, url, canonical_id=f"url:{url}",
+                                force_refresh=force_refresh)
 
     # --------------------------------------------------------
-    # Explicitly avoid pretending DOI support exists.
+    # Complete citations and titles; unsupported paths remain local errors.
     # --------------------------------------------------------
 
-    if source_text.lower().startswith(
-        "10."
-    ):
-        raise UnsupportedSourceError(
-            "DOI full-text resolution is not "
-            "implemented in this phase."
-        )
+    if len(source_text.split()) >= 3 and not source_text.startswith(("/", "\\")):
+        return _load_reference(source_text, force_refresh=force_refresh)
 
     raise UnsupportedSourceError(
         f"Unsupported source: "

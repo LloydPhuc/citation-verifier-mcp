@@ -237,11 +237,12 @@ class TestLoadSourceDispatch:
         with pytest.raises(ValueError, match="empty"):
             load_source("")
 
-    def test_doi_not_supported(self):
-        with pytest.raises(
-            UnsupportedSourceError, match="not implemented"
-        ):
-            load_source("10.1038/s41467-025-58551-6")
+    def test_doi_dispatches_to_reference_resolution(self, monkeypatch):
+        from citation_v2 import source_loader
+
+        sentinel = object()
+        monkeypatch.setattr(source_loader, "_load_reference", lambda *args, **kwargs: sentinel)
+        assert load_source("10.1038/s41467-025-58551-6") is sentinel
 
     def test_nonexistent_local_path_raises(self):
         with pytest.raises(
