@@ -131,7 +131,7 @@ No API keys or tokens required. All inference runs locally.
 
 ## Installation (Windows)
 
-Bootstrap requires Python >=3.13. Hosted CI checks a fresh Windows environment (Python 3.13.16), including model download, offline inference and MCP discovery. Linux CI covers the fixture suite; live GROBID parsing and RefChecker metadata lookups remain separate integration checks.
+Bootstrap requires Python >=3.13. Hosted CI checks a fresh Windows environment (Python 3.13), including model download, offline inference and MCP discovery. Linux CI covers the fixture suite; live GROBID parsing and RefChecker metadata lookups remain separate integration checks.
 
 Bootstrap retains the selected interpreter and validates the Python version of newly created and reused `.venv` environments before installing packages. Without `-Force`, unsupported, broken or incomplete existing environments are preserved and rejected. Before explicit `-Force` recreation, confirm exclusive ownership, stop clients and back up the environment; see [safe recovery](docs/troubleshooting.md#module-import-errors).
 
