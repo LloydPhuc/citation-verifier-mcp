@@ -127,6 +127,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/wheels"
           docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" \
             --cpus 2 --memory 3g --pids-limit 96 --ulimit fsize=1073741824:1073741824 \
             --tmpfs /tmp:rw,nosuid,nodev,size=1g \
             --mount "type=bind,src=$RUNNER_TEMP/wheels,dst=/w" \

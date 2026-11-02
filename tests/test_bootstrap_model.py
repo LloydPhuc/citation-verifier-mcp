@@ -35,6 +35,8 @@ def test_model_preparation_guidance(tmp_path: Path, scenario: str) -> None:
     fake_module = tmp_path / "transformers.py"
     fake_module.write_text(
         """import os
+import sys
+print('synthetic nonfatal diagnostic', file=sys.stderr)
 scenario = os.environ['MODEL_TEST_SCENARIO']
 if scenario == 'import_error':
     raise ImportError('synthetic missing dependency')

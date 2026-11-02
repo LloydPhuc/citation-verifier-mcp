@@ -272,6 +272,10 @@ Write-Host "  This downloads ~170MB on first run. Subsequent runs use the cache.
 
 $NLIModelReady = $false
 try {
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 otherwise turns harmless native stderr into a terminating error.
+        $ErrorActionPreference = 'Continue'
     $modelCheck = & $VenvPython -c @"
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
@@ -293,9 +297,13 @@ except Exception as e:
     print(f'MODEL_ERROR: {e}')
     sys.exit(1)
 "@ 2>&1
+        $ModelExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $PreviousErrorActionPreference
+    }
 
     $modelOutput = $modelCheck -join "`n"
-    if ($LASTEXITCODE -ne 0) {
+    if ($ModelExitCode -ne 0) {
         Write-Warn "NLI model preparation failed: $modelOutput"
     } elseif ($modelOutput -match 'MODEL_CACHED') {
         $NLIModelReady = $true

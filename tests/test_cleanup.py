@@ -81,9 +81,13 @@ def test_ancestor_junction_rejected_before_any_deletion(project, tmp_path):
     original = project / "citation_v2"
     external = tmp_path / "external"
     original.rename(external)
-    command = "New-Item -ItemType Junction -Path $args[0] -Target $args[1] | Out-Null"
+    command = (
+        "New-Item -ItemType Junction -Path $env:CITATION_TEST_LINK "
+        "-Target $env:CITATION_TEST_TARGET | Out-Null"
+    )
     result = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", command, str(original), str(external)],
+        ["powershell", "-NoProfile", "-Command", command],
+        env={**os.environ, "CITATION_TEST_LINK": str(original), "CITATION_TEST_TARGET": str(external)},
         capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, result.stderr
