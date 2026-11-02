@@ -134,7 +134,7 @@ class TestSafeFilename:
         assert safe_filename("  file.txt  ") == "file.txt"
 
     def test_windows_path_reduces_to_basename(self):
-        assert safe_filename("C:\\Users\\admin\\file.txt") == "file.txt"
+        assert safe_filename("C:\\Users\\example\\file.txt") == "file.txt"
 
     def test_posix_path_reduces_to_basename(self):
         assert safe_filename("/home/user/file.txt") == "file.txt"
@@ -174,7 +174,7 @@ class TestSafeFilename:
             safe_filename(None)
 
     def test_mixed_separators(self):
-        result = safe_filename("C:\\Users/admin\\file.txt")
+        result = safe_filename("C:\\Users/example\\file.txt")
         assert result == "file.txt"
 
     def test_filename_with_spaces(self):

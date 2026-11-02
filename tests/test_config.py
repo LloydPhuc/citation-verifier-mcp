@@ -1,10 +1,9 @@
 """Tests for citation_v2.config module."""
 
 import os
-import tempfile
-from pathlib import Path
 
 import pytest
+from conftest import _TEST_HOME
 
 from citation_v2 import config
 
@@ -106,9 +105,7 @@ class TestDefaults:
         assert config.CHUNK_OVERLAP_CHARS == 600
 
     def test_nli_model_id(self):
-        assert config.NLI_MODEL_ID == (
-            "cross-encoder/nli-deberta-v3-small"
-        )
+        assert config.NLI_MODEL_ID == ("cross-encoder/nli-deberta-v3-small")
 
     def test_http_user_agent(self):
         assert "CitationMCP" in config.HTTP_USER_AGENT
@@ -124,36 +121,22 @@ class TestPathResolution:
         assert config.BASE_DIR == _TEST_HOME
 
     def test_db_path_under_test_home(self):
-        assert str(config.DB_PATH).startswith(
-            str(_TEST_HOME)
-        )
+        assert str(config.DB_PATH).startswith(str(_TEST_HOME))
 
     def test_cache_dir_under_test_home(self):
         assert config.CACHE_DIR == _TEST_HOME / "cache"
 
     def test_raw_cache_dir(self):
-        assert (
-            config.RAW_CACHE_DIR
-            == _TEST_HOME / "cache" / "raw"
-        )
+        assert config.RAW_CACHE_DIR == _TEST_HOME / "cache" / "raw"
 
     def test_text_cache_dir(self):
-        assert (
-            config.TEXT_CACHE_DIR
-            == _TEST_HOME / "cache" / "text"
-        )
+        assert config.TEXT_CACHE_DIR == _TEST_HOME / "cache" / "text"
 
     def test_source_cache_dir(self):
-        assert (
-            config.SOURCE_CACHE_DIR
-            == _TEST_HOME / "cache" / "source"
-        )
+        assert config.SOURCE_CACHE_DIR == _TEST_HOME / "cache" / "source"
 
     def test_temp_cache_dir(self):
-        assert (
-            config.TEMP_CACHE_DIR
-            == _TEST_HOME / "cache" / "temp"
-        )
+        assert config.TEMP_CACHE_DIR == _TEST_HOME / "cache" / "temp"
 
 
 @pytest.mark.unit
@@ -182,21 +165,13 @@ class TestValidateConfig:
             )
 
     def test_empty_nli_model_id_raises(self, monkeypatch):
-        monkeypatch.setattr(
-            config, "NLI_MODEL_ID", "  "
-        )
-        with pytest.raises(
-            RuntimeError, match="NLI_MODEL_ID cannot be empty"
-        ):
+        monkeypatch.setattr(config, "NLI_MODEL_ID", "  ")
+        with pytest.raises(RuntimeError, match="NLI_MODEL_ID cannot be empty"):
             config.validate_config()
 
     def test_grobid_url_must_have_scheme(self, monkeypatch):
-        monkeypatch.setattr(
-            config, "GROBID_URL", "ftp://invalid"
-        )
-        with pytest.raises(
-            RuntimeError, match="must use http or https"
-        ):
+        monkeypatch.setattr(config, "GROBID_URL", "ftp://invalid")
+        with pytest.raises(RuntimeError, match="must use http or https"):
             config.validate_config()
 
 
@@ -218,9 +193,7 @@ class TestInitializeRuntimePaths:
             (blocking_file,),
         )
 
-        with pytest.raises(
-            RuntimeError, match="not a directory"
-        ):
+        with pytest.raises(RuntimeError, match="not a directory"):
             config.ensure_directories()
 
 
@@ -236,15 +209,3 @@ class TestRuntimeSummary:
         assert "bm25_top_k" in summary
         assert "nli_model" in summary
         assert "nli_entailment_threshold" in summary
-
-
-# Resolve the actual test home path set by conftest.py
-_TEST_HOME = Path(
-    os.environ.get(
-        "CITATION_MCP_HOME",
-        os.path.join(
-            tempfile.gettempdir(),
-            "citation_mcp_test_env",
-        ),
-    )
-)

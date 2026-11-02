@@ -2,17 +2,19 @@
 
 import pytest
 
-from citation_v2.verifier import (
-    EVIDENCE_WINDOW_OVERLAP_CHARS,
-    EVIDENCE_WINDOW_TARGET_CHARS,
+from citation_v2.policy import (
     PARTIAL_ENTAILMENT_THRESHOLD,
     EvidenceCandidate,
-    VerificationInputError,
     _best_contradiction,
     _best_entailment,
     _best_neutral,
-    _content_words,
     _decide,
+)
+from citation_v2.verifier import (
+    EVIDENCE_WINDOW_OVERLAP_CHARS,
+    EVIDENCE_WINDOW_TARGET_CHARS,
+    VerificationInputError,
+    _content_words,
     _evidence_relevant_to_claim,
     _normalize_number_token,
     _validate_claim,

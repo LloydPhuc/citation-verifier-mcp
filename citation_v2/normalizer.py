@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import unicodedata
 
-
 # Unicode spaces that commonly appear in PDFs/web text.
 _SPECIAL_SPACES = {
     "\u00a0": " ",   # NO-BREAK SPACE

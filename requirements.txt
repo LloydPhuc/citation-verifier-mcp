@@ -23,6 +23,9 @@ rank-bm25==0.2.2
 # HTTP client for source/document loading
 requests==2.34.2
 
+# Public-only connection adapter (version exercised by the transport fixtures)
+urllib3==2.8.0
+
 # PyTorch (CPU-only build tested; NLI runtime enforces CPU)
 torch==2.14.0+cpu
 

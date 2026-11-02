@@ -3,9 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Any, Iterator, Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import closing, contextmanager
+from datetime import UTC, datetime
+from typing import Any
 
 from .config import (
     DB_PATH,
@@ -13,7 +14,6 @@ from .config import (
     SQLITE_BUSY_TIMEOUT_MS,
     initialize_runtime_paths,
 )
-
 
 SCHEMA_VERSION = 1
 
@@ -23,7 +23,7 @@ SCHEMA_VERSION = 1
 # ============================================================
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def sha256_text(text: str) -> str:
@@ -499,7 +499,7 @@ def get_paper(
 
     canonical_id = canonical_id.strip()
 
-    with get_connection() as conn:
+    with closing(get_connection()) as conn:
 
         row = conn.execute(
             """
@@ -670,7 +670,7 @@ def get_chunks(
     content_hash: str,
 ) -> list[dict[str, Any]]:
 
-    with get_connection() as conn:
+    with closing(get_connection()) as conn:
 
         rows = conn.execute(
             """
@@ -898,7 +898,7 @@ def database_summary() -> dict[str, int]:
 
     result: dict[str, int] = {}
 
-    with get_connection() as conn:
+    with closing(get_connection()) as conn:
 
         for table in tables:
 

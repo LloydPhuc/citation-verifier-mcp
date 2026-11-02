@@ -34,7 +34,7 @@ TOOL_DISCOVERY_TIMEOUT = 15.0
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SERVER_PY = REPO_ROOT / "server.py"
-VENV_PYTHON = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+VENV_PYTHON = Path(sys.executable)
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ def repo_root():
 
 @pytest.fixture(scope="session")
 def venv_python():
-    """Path to the virtual environment Python executable."""
+    """Use the interpreter running this suite, including a clean sandbox."""
     if not VENV_PYTHON.exists():
         pytest.skip(f"Virtual environment not found at {VENV_PYTHON}")
     return str(VENV_PYTHON)
@@ -76,7 +76,7 @@ async def _run_mcp_discovery(venv_python: str, server_py: str):
     server_params = StdioServerParameters(
         command=venv_python,
         args=[server_py],
-        cwd=str(REPO_ROOT),
+        cwd=str(Path(server_py).resolve().parent),
         # Ensure clean environment: no external GROBID, no network
         env={
             **os.environ,
@@ -294,29 +294,7 @@ if __name__ == "__main__":
 
         # Check schemas
         try:
-            # Reuse schema validation logic
-            class _Validator:
-                def _assert_verify_claim_schema(self, s):
-                    sch = s.get("verify_claim")
-                    assert sch is not None, "verify_claim schema not found"
-                    assert sch.get("type") == "object", "verify_claim schema must be object"
-                    req = sch.get("required", [])
-                    assert "claim" in req, "verify_claim requires 'claim'"
-                    assert "source" in req, "verify_claim requires 'source'"
-                    props = sch.get("properties", {})
-                    assert props.get("claim", {}).get("type") == "string"
-                    assert props.get("source", {}).get("type") == "string"
-
-                def _assert_verify_claims_schema(self, s):
-                    sch = s.get("verify_claims")
-                    assert sch is not None, "verify_claims schema not found"
-                    assert sch.get("type") == "object", "verify_claims schema must be object"
-                    req = sch.get("required", [])
-                    assert "claims" in req, "verify_claims requires 'claims'"
-                    props = sch.get("properties", {})
-                    assert props.get("claims", {}).get("type") == "array"
-
-            v = _Validator()
+            v = TestMCPDiscovery()
             v._assert_verify_claim_schema(tool_schemas)
             v._assert_verify_claims_schema(tool_schemas)
             print("Schema validation: PASS")

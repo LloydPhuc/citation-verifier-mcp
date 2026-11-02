@@ -8,12 +8,11 @@ from pathlib import Path
 from .config import (
     CACHE_DIR,
     RAW_CACHE_DIR,
-    TEXT_CACHE_DIR,
     SOURCE_CACHE_DIR,
     TEMP_CACHE_DIR,
+    TEXT_CACHE_DIR,
     initialize_runtime_paths,
 )
-
 
 # ============================================================
 # Hashing
@@ -339,7 +338,7 @@ def save_binary_file(
 
     if not isinstance(
         data,
-        (bytes, bytearray),
+        bytes | bytearray,
     ):
         raise TypeError(
             "data must be bytes."

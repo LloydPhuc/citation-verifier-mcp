@@ -150,6 +150,9 @@ def mock_session(monkeypatch, responses):
     class Session:
         headers = {}
 
+        def mount(self, *args):
+            pass
+
         def get(self, url, **kwargs):
             calls.append(url)
             assert kwargs["allow_redirects"] is False

@@ -34,7 +34,7 @@ Check references and inspect whether a paper supports a factual claim, directly 
 | **Local inference** | DeBERTa-v3 NLI model runs on CPU (PyTorch); no GPU required |
 | **Exact provenance** | Evidence quotes include character offsets and page numbers; `PASS` requires verified provenance |
 | **Relevance-gated contradictions** | Strong contradiction verdicts require topical evidence overlap; reduces some unrelated-evidence artifacts (heuristic coverage ≥0.30) |
-| **Five MCP tools** | `verify_document`, `verify_bibliography`, `citation_summary`, `verify_claim`, `verify_claims` |
+| **Six MCP tools** | `verify_document`, `verify_bibliography`, `citation_summary`, `verify_claim`, `verify_claims`, `verify_reference` |
 | **Batch reuse** | Multiple claims on the same source reuse loaded text, chunks, and BM25 index |
 | **Failure isolation** | One failed claim in a batch does not abort others |
 | **Deterministic verdicts** | `PASS` / `WARN` / `FAIL` / `ABSTAIN` with explicit reasons |
@@ -131,7 +131,7 @@ No API keys or tokens required. All inference runs locally.
 
 ## Installation (Windows)
 
-Bootstrap requires Python >=3.13; the independently verified environment is Python 3.13.7 on Windows 11.
+Bootstrap requires Python >=3.13. Hosted CI checks a fresh Windows environment (Python 3.13), including model download, offline inference and MCP discovery. Linux CI covers the fixture suite; live GROBID parsing and RefChecker metadata lookups remain separate integration checks.
 
 Bootstrap retains the selected interpreter and validates the Python version of newly created and reused `.venv` environments before installing packages. Without `-Force`, unsupported, broken or incomplete existing environments are preserved and rejected. Before explicit `-Force` recreation, confirm exclusive ownership, stop clients and back up the environment; see [safe recovery](docs/troubleshooting.md#module-import-errors).
 
@@ -141,6 +141,7 @@ git clone https://github.com/LloydPhuc/citation-verifier-mcp.git
 cd citation-verifier-mcp
 
 # 2. Bootstrap environment (creates .venv, installs deps, downloads model)
+$env:PIP_CONSTRAINT = (Resolve-Path .\constraints-windows-py313.txt).Path
 .\scripts\bootstrap.ps1
 
 # 3. Start GROBID (citation parsing service)
@@ -165,6 +166,7 @@ The bootstrap script installs:
 | `pdfplumber` | 0.11.10 | PDF text extraction (pdfminer.six backend) |
 | `rank-bm25` | 0.2.2 | BM25 lexical retrieval |
 | `requests` | 2.34.2 | HTTP client |
+| `urllib3` | 2.8.0 | Validated-address HTTP connections |
 | `torch` | 2.14.0+cpu | PyTorch CPU build |
 | `transformers` | 5.17.0 | DeBERTa-v3 NLI model |
 | `sentencepiece` | 0.2.2 | Tokenizer |
@@ -173,6 +175,7 @@ The bootstrap script installs:
 >
 > **Dependency commands used by bootstrap.ps1** (after creating `.venv`; the full bootstrap also prepares the model and checks imports):
 > ```powershell
+> .\.venv\Scripts\python.exe -m pip install --upgrade pip setuptools==84.2.1
 > .\.venv\Scripts\python.exe -m pip install torch==2.14.0+cpu --index-url https://download.pytorch.org/whl/cpu
 > .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 > .\.venv\Scripts\python.exe -m pip install academic-refchecker==3.0.190
@@ -355,6 +358,9 @@ See [Limitations](docs/limitations.md) for details.
 ---
 
 ## Documentation
+
+For the consolidated local installation, disk cleanup and verification limits,
+see [One local installation](docs/local-consolidation.md).
 
 | Document | Purpose |
 |----------|---------|

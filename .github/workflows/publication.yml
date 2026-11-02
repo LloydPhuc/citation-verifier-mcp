@@ -1,0 +1,170 @@
+name: Publication checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Provision verified Gitleaks
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'gitleaks.zip'
+          $tool = Join-Path $env:RUNNER_TEMP 'gitleaks'
+          Invoke-WebRequest 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip' -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive).Hash.ToLower() -ne 'd29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e') {
+            throw 'Gitleaks checksum mismatch'
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $tool
+      - name: Scan working files, index and history
+        shell: pwsh
+        run: |
+          $scanner = Join-Path $env:RUNNER_TEMP 'gitleaks/gitleaks.exe'
+          & $scanner dir . --redact=100 --no-banner --ignore-gitleaks-allow --max-archive-depth 3 --max-decode-depth 3 --timeout 180
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $scanner git . --staged --redact=100 --no-banner --ignore-gitleaks-allow --timeout 180
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $scanner git . --log-opts '--all --full-history' --redact=100 --no-banner --ignore-gitleaks-allow --timeout 180
+          exit $LASTEXITCODE
+  windows-functional:
+    needs: scan
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PIP_CONSTRAINT: ${{ github.workspace }}/constraints-windows-py313.txt
+      PIP_ONLY_BINARY: ':all:'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      PYTHONUTF8: '1'
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      OMP_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - name: Check space and isolate application state
+        shell: pwsh
+        run: |
+          $free = (Get-PSDrive -Name ([IO.Path]::GetPathRoot($env:RUNNER_TEMP).Substring(0,1))).Free
+          if ($free -lt 8GB) { throw 'Need 8 GiB for downloads, one environment and model' }
+          Write-Host "Free bytes: $free; estimated peak additional use: 8 GiB"
+          "HF_HOME=$env:RUNNER_TEMP/hf" >> $env:GITHUB_ENV
+          "CITATION_MCP_HOME=$env:RUNNER_TEMP/citation-runtime" >> $env:GITHUB_ENV
+          if (Test-Path -LiteralPath '.venv') { throw 'Clean checkout unexpectedly has a venv' }
+      - name: Clean installation using documented bootstrap
+        shell: powershell
+        run: |
+          & .\scripts\bootstrap.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & .\.venv\Scripts\python.exe -m pip install --only-binary=:all: -r requirements-dev.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & .\.venv\Scripts\python.exe -m pip check
+          exit $LASTEXITCODE
+      - name: Run all eight Windows-specific tests
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'windows-tests.xml'
+          & .\.venv\Scripts\python.exe -m pytest tests/test_bootstrap_model.py tests/test_cleanup.py -q -p no:cacheprovider "--junitxml=$report" "--basetemp=$env:RUNNER_TEMP/pytest-windows"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          [xml]$results = Get-Content -LiteralPath $report -Raw
+          $suite = $results.testsuites.testsuite
+          if ($suite.tests -ne '8' -or $suite.skipped -ne '0' -or $suite.failures -ne '0' -or $suite.errors -ne '0') {
+            throw 'All eight Windows tests must run and pass without skips'
+          }
+      - name: MCP stdio smoke and offline inference from newly downloaded model
+        shell: powershell
+        env:
+          HF_HUB_OFFLINE: '1'
+          TRANSFORMERS_OFFLINE: '1'
+        run: |
+          & .\scripts\smoke_test.ps1 -Timeout 60
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & .\.venv\Scripts\academic-refchecker.exe --help
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          @'
+          import hashlib, json, os
+          from pathlib import Path
+          from citation_v2.nli import NLIEngine
+          engine = NLIEngine()
+          result = engine.score(evidence="The study reports 15 samples.", claim="The study reports 15 samples.")
+          assert result.predicted_label == "entailment", result
+          print(json.dumps(result.to_dict()))
+          for path in sorted(Path(os.environ["HF_HOME"]).glob("hub/models--cross-encoder--nli-deberta-v3-small/snapshots/*/*")):
+              if path.is_file():
+                  print(json.dumps({"revision": path.parent.name, "file": path.name, "sha256": hashlib.file_digest(path.open("rb"), "sha256").hexdigest()}))
+          '@ | & .\.venv\Scripts\python.exe -
+          exit $LASTEXITCODE
+      - name: Verify publication command and report public dependency versions
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'gitleaks.zip'
+          $tool = Join-Path $env:RUNNER_TEMP 'gitleaks'
+          Invoke-WebRequest 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip' -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive).Hash.ToLower() -ne 'd29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e') {
+            throw 'Gitleaks checksum mismatch'
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $tool
+          & .\scripts\check-publication.ps1 -Gitleaks (Join-Path $tool 'gitleaks.exe')
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & .\.venv\Scripts\python.exe -m pip list --format=json
+          exit $LASTEXITCODE
+  linux-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Provision binary dependencies without project execution
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/wheels"
+          docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" \
+            --cpus 2 --memory 3g --pids-limit 96 --ulimit fsize=1073741824:1073741824 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=1g \
+            --mount "type=bind,src=$RUNNER_TEMP/wheels,dst=/w" \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/repo,readonly" \
+            --entrypoint /usr/bin/env \
+            python@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb \
+            -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp TMPDIR=/tmp timeout 600 sh -ec '
+              python -m pip --isolated download --only-binary=:all: --no-cache-dir --no-deps \
+                --dest /w --index-url https://download.pytorch.org/whl/cpu torch==2.14.0+cpu
+              python -m pip --isolated download --only-binary=:all: --no-cache-dir --dest /w \
+                --find-links /w --index-url https://pypi.org/simple \
+                -r /repo/requirements-dev.txt -c /repo/constraints-linux-py313.txt
+            '
+      - name: Run Linux fixture suite in offline OS sandbox
+        shell: bash
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --cpus 2 --memory 5g --pids-limit 96 \
+            --ulimit nofile=512:512 --ulimit cpu=120:120 --ulimit fsize=1073741824:1073741824 \
+            --user 65534:65534 --tmpfs /scratch:rw,exec,nosuid,nodev,size=3g,mode=1777 \
+            --tmpfs /dev/shm:ro,nosuid,nodev,size=1m,mode=0555 \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/repo,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP/wheels,dst=/w,readonly" \
+            --workdir /repo --entrypoint /usr/bin/env \
+            python@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb \
+            -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/scratch TMPDIR=/scratch \
+            XDG_CACHE_HOME=/scratch/cache HF_HOME=/scratch/hf HF_HUB_OFFLINE=1 \
+            TRANSFORMERS_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+            OMP_NUM_THREADS=2 timeout --signal=KILL 450 sh -ec '
+              python -m pip --isolated install --quiet --no-index --only-binary=:all: \
+                --no-cache-dir --no-compile --target /scratch/deps --find-links /w \
+                -r requirements-dev.txt -c constraints-linux-py313.txt
+              export PYTHONPATH=/scratch/deps
+              ulimit -f 131072
+              timeout --signal=KILL 300 python -B -m pytest tests -q -p no:cacheprovider --basetemp=/scratch/pytest
+            '

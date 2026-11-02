@@ -99,7 +99,7 @@ function Test-DockerEngine {
     param([string]$DockerExe)
     try {
         & $DockerExe version --format '{{.Server.Version}}' 2>$null | Out-Null
-        return $true
+        return ($LASTEXITCODE -eq 0)
     } catch {
         return $false
     }
@@ -159,7 +159,7 @@ function Get-ContainerStatus {
     $dockerExe = Get-DockerCli
     if (-not $dockerExe) { return $null }
     try {
-        $status = & $dockerExe inspect -f '{{.State.Status}} {{.State.Health.Status}}' $ContainerName 2>$null
+        $status = & $dockerExe inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' $ContainerName 2>$null
         if ($LASTEXITCODE -eq 0 -and $status) {
             $parts = $status.Split(' ')
             return @{ Status = $parts[0]; Health = if ($parts.Count -gt 1) { $parts[1] } else { 'none' } }

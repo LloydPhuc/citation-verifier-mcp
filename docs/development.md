@@ -116,7 +116,7 @@ Historical evidence: TASK 24R recorded **547 passed** on Windows 11 / Python 3.1
 .venv\Scripts\python -m pytest tests/ -m "unit and not slow" -q --basetemp=.\.pytest-tmp
 ```
 
-Use a dedicated disposable `--basetemp`: pytest may delete its contents. Never use production data. `tests/conftest.py` uses `setdefault` for test home/database variables, preserving inherited values; use a separate test shell and dedicated paths.
+Use a dedicated disposable `--basetemp`: pytest may delete its contents. Never use production data. `tests/conftest.py` overrides test home/database variables with a temporary directory. This protects test paths but is not an OS sandbox. Run untrusted source in an isolated environment with no credentials, no external network, bounded resources and only disposable writable storage.
 
 ### Smoke Test
 
@@ -247,3 +247,29 @@ No build step is required. The project is pure Python. The MCP server is launche
 ```
 
 The server communicates via stdio JSON-RPC (MCP protocol). It does not listen on a network port.
+
+### Publication checks
+
+Run `./scripts/check-publication.ps1 -Gitleaks <verified-gitleaks-executable>` before any upload. Provision Gitleaks 8.30.1 from its official release and check its published SHA256. The command checks working files, staged changes and reachable history with redaction; exit 0 covers secret scanning only. Ignored runtime data is excluded from publication, never declared disposable by this check.
+
+The matching CI workflow uses read-only repository permissions, commit-pinned actions, no persisted Git credentials and no report upload. Its Windows job bootstraps a fresh environment on a GitHub-hosted runner, runs all eight Windows-specific tests without skips, checks MCP stdio discovery, invokes RefChecker help, loads the newly downloaded model offline for inference, and runs the publication command. The Linux fixture suite runs in an offline Docker sandbox. These checks do not exercise live GROBID parsing or RefChecker metadata services; those integrations need separate verification. A secret-clean draft PR may run CI before release approval.
+
+Development dependencies use pytest 9.0.3 and pypdf 6.21.4 to address the advisories linked from PyPI. Keep runtime pins unchanged until a compatibility test supports changing them.
+
+`constraints-linux-py313.txt` records the Linux Python 3.13 fixture environment.
+`constraints-windows-py313.txt` pins the Windows runtime, RefChecker and development
+environment. Set `PIP_CONSTRAINT` as shown in the README for a clean Windows
+bootstrap. CI uses these constraints and checks `pip check`; no cached environment
+or model is restored by the workflow. Bootstrap also installs setuptools 84.2.1
+to avoid the advisory-listed older installation tooling.
+
+The model snapshot inspected for restoration is
+`cross-encoder/nli-deberta-v3-small` at revision
+`fa2804872c3b4bd748f38c0185cc85775361e735`; its `model.safetensors` SHA256 is
+`ebc79588dd73ccfb6a3f6078519cfbf512c5305384c5ea1845bc71cd32216e86`.
+Hosted Windows CI independently downloaded this snapshot and loaded it by the
+default model ID offline. Bootstrap currently follows the model repository default
+revision, so the recorded hash does not pin future downloads. Preserve a working
+cache when offline recovery or exact model reproducibility is required.
+Compose pins the GROBID image by digest; existing containers retain their previous
+port bindings until explicitly recreated.

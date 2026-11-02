@@ -6,31 +6,25 @@ citation_v2 modules are imported, ensuring tests never touch
 the real project database or cache.
 """
 
+import gc
 import os
 import tempfile
 from pathlib import Path
 
 import pytest
 
-# Use a writable temp directory for pytest basetemp
-_basetemp = Path(tempfile.gettempdir()) / "citation_pytest_basetemp"
-_basetemp.mkdir(parents=True, exist_ok=True)
-os.environ.setdefault("PYTEST_BASETEMP", str(_basetemp))
-
-_TEST_HOME = Path(tempfile.gettempdir()) / "citation_mcp_test_env"
-_TEST_HOME.mkdir(parents=True, exist_ok=True)
-
-os.environ.setdefault(
-    "CITATION_MCP_HOME", str(_TEST_HOME)
-)
-os.environ.setdefault(
-    "CITATION_MCP_DB_PATH",
-    str(_TEST_HOME / "data" / "tests.db"),
-)
+# Never inherit production paths. One disposable home per test process, removed
+# on exit; no fixed shared directory or stale database across repeated runs.
+_runtime = tempfile.TemporaryDirectory(prefix="citation-tests-")
+_TEST_HOME = Path(_runtime.name).resolve()
+os.environ["CITATION_MCP_HOME"] = str(_TEST_HOME)
+os.environ["CITATION_MCP_DB_PATH"] = str(_TEST_HOME / "data" / "tests.db")
 
 
-_BASETEMP = Path(tempfile.gettempdir()) / "citation_pytest_basetemp"
-_BASETEMP.mkdir(parents=True, exist_ok=True)
+def pytest_unconfigure(config):
+    # Release SQLite cursor cycles before Windows removes the disposable home.
+    gc.collect()
+    _runtime.cleanup()
 
 
 @pytest.fixture

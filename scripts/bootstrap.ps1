@@ -217,11 +217,11 @@ if (-not (Test-Path $RequirementsFile)) {
     Write-ErrorExit "requirements.txt not found at: $RequirementsFile"
 }
 
-# Upgrade pip first
-Write-Host "  Upgrading pip..."
-& $VenvPython -m pip install --upgrade pip --quiet 2>&1 | Out-Null
+# Upgrade installation tools; older setuptools releases have known advisories.
+Write-Host "  Updating pip and setuptools..."
+& $VenvPython -m pip install --upgrade pip setuptools==84.2.1 --quiet 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "pip upgrade failed, continuing with existing pip."
+    Write-ErrorExit "Failed to update installation tools. Resolve the pip/setuptools error before installing dependencies."
 }
 
 # Install PyTorch CPU separately (requires specialized index)
@@ -272,7 +272,11 @@ Write-Host "  This downloads ~170MB on first run. Subsequent runs use the cache.
 
 $NLIModelReady = $false
 try {
-    $modelCheck = & $VenvPython -c @"
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 otherwise turns harmless native stderr into a terminating error.
+        $ErrorActionPreference = 'Continue'
+        $modelCheck = & $VenvPython -c @"
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 try:
@@ -293,9 +297,13 @@ except Exception as e:
     print(f'MODEL_ERROR: {e}')
     sys.exit(1)
 "@ 2>&1
+        $ModelExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $PreviousErrorActionPreference
+    }
 
     $modelOutput = $modelCheck -join "`n"
-    if ($LASTEXITCODE -ne 0) {
+    if ($ModelExitCode -ne 0) {
         Write-Warn "NLI model preparation failed: $modelOutput"
     } elseif ($modelOutput -match 'MODEL_CACHED') {
         $NLIModelReady = $true

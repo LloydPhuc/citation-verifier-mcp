@@ -71,7 +71,7 @@ function Get-DockerCli {
 
 function Test-DockerEngine {
     param([string]$DockerExe)
-    try { & $DockerExe version --format '{{.Server.Version}}' 2>$null | Out-Null; return $true }
+    try { & $DockerExe version --format '{{.Server.Version}}' 2>$null | Out-Null; return ($LASTEXITCODE -eq 0) }
     catch { return $false }
 }
 
@@ -88,7 +88,7 @@ function Get-ContainerStatus {
     $dockerExe = Get-DockerCli
     if (-not $dockerExe) { return $null }
     try {
-        $status = & $dockerExe inspect -f '{{.State.Status}} {{.State.Health.Status}}' $ContainerName 2>$null
+        $status = & $dockerExe inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' $ContainerName 2>$null
         if ($LASTEXITCODE -eq 0 -and $status) {
             $parts = $status.Split(' ')
             return @{ Status = $parts[0]; Health = if ($parts.Count -gt 1) { $parts[1] } else { 'none' } }
@@ -314,6 +314,10 @@ $RequiredFiles = @(
     'citation_v2\schemas.py',
     'citation_v2\batch.py',
     'citation_v2\verifier.py',
+    'citation_v2\policy.py',
+    'citation_v2\public_http.py',
+    'citation_v2\reference_resolver.py',
+    'citation_v2\web_source.py',
     'citation_v2\source_loader.py',
     'citation_v2\text_extractor.py',
     'citation_v2\nli.py',
@@ -357,7 +361,7 @@ if ($PythonTestExe) {
 
 # MCP tool discovery (requires dependencies)
 $PythonMcpExe = if (Test-Path (Join-Path $RepoRoot '.venv\Scripts\python.exe')) { Join-Path $RepoRoot '.venv\Scripts\python.exe' } elseif ($PythonExe) { $PythonExe } else { $null }
-$ExpectedTools = @('verify_document', 'verify_bibliography', 'citation_summary', 'verify_claim', 'verify_claims')
+$ExpectedTools = @('verify_document', 'verify_bibliography', 'citation_summary', 'verify_claim', 'verify_claims', 'verify_reference')
 
 if ($PythonMcpExe) {
     try {
@@ -381,7 +385,7 @@ async def main():
                 print(tool.name)
 asyncio.run(main())
 "@
-        $result = & $PythonMcpExe -c $script $PythonMcpExe 'server.py' 2>&1
+        $result = & $PythonMcpExe -c $script $PythonMcpExe (Join-Path $RepoRoot 'server.py') 2>&1
         $foundTools = $result.Split("`n") | Where-Object { $_ -match '\S' }
         $missing = @()
         foreach ($t in $ExpectedTools) {
