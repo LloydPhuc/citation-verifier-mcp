@@ -257,16 +257,19 @@ The matching CI workflow uses read-only repository permissions, commit-pinned ac
 Development dependencies use pytest 9.0.3 and pypdf 6.21.4 to address the advisories linked from PyPI. Keep runtime pins unchanged until a compatibility test supports changing them.
 
 `constraints-linux-py313.txt` records the Linux Python 3.13 fixture environment.
-It is not a Windows lock file or evidence of a fresh Windows installation. The
-bootstrap still resolves transitive dependencies on Windows; verify that resolved
-environment before removing an existing working installation.
+`constraints-windows-py313.txt` pins the Windows runtime, RefChecker and development
+environment. Set `PIP_CONSTRAINT` as shown in the README for a clean Windows
+bootstrap. CI uses these constraints and checks `pip check`; no cached environment
+or model is restored by the workflow. Bootstrap also installs setuptools 84.2.1
+to avoid the advisory-listed older installation tooling.
 
 The model snapshot inspected for restoration is
 `cross-encoder/nli-deberta-v3-small` at revision
 `fa2804872c3b4bd748f38c0185cc85775361e735`; its `model.safetensors` SHA256 is
 `ebc79588dd73ccfb6a3f6078519cfbf512c5305384c5ea1845bc71cd32216e86`.
-Bootstrap currently follows the model repository default revision, so this record
-does not make model provisioning reproducible. Preserve the existing cache until
-a download and offline load of the recorded snapshot has been independently checked.
+Hosted Windows CI independently downloaded this snapshot and loaded it by the
+default model ID offline. Bootstrap currently follows the model repository default
+revision, so the recorded hash does not pin future downloads. Preserve a working
+cache when offline recovery or exact model reproducibility is required.
 Compose pins the GROBID image by digest; existing containers retain their previous
 port bindings until explicitly recreated.

@@ -477,6 +477,7 @@ Verified via `git ls-files`:
 | 14 | pytest | 9.0.3 | MIT | Dev-only test runner | No |
 | 15 | ruff | 0.9.3 | MIT | Dev-only linter | No |
 | 16 | mypy | 1.15.0 | MIT | Dev-only type checker | No |
+| 17 | urllib3 | 2.8.0 | MIT | Import — validated-address HTTP transport | No |
 | — | PyMuPDF (was) | 1.28.2 | AGPL-3.0 | **REMOVED** | No |
 
 ---
@@ -484,3 +485,10 @@ Verified via `git ls-files`:
 ## Publication Scope
 
 This source publication applies MIT to project-owned code and keeps third-party license disclosures separate. PyMuPDF is absent from current manifests and production/test imports; RefChecker's GPL dependencies remain disclosed and are not bundled. No blanket compatibility conclusion is made for direct/transitive dependencies or complete environment redistribution. Packaging third-party components requires its own license review.
+
+`constraints-windows-py313.txt` records the hosted Windows environment, including
+RefChecker and test dependencies. The tooling pin setuptools 84.2.1 is MIT-licensed;
+mypy_extensions also uses MIT, as stated in its upstream LICENSE even though its
+PyPI license metadata is empty. This environment includes fuzzywuzzy (GPLv2),
+Levenshtein/python-Levenshtein (GPL-2.0-or-later), certifi (MPL-2.0) and tqdm
+(MPL-2.0 AND MIT); the source repository does not bundle those packages.
