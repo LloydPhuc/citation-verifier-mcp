@@ -1,6 +1,6 @@
 services:
   grobid:
-    image: grobid/grobid:0.9.1-crf
+    image: grobid/grobid:0.9.1-crf@sha256:223957791ac2bbe48609dcc58a689b16b60baeae13a8734ef440ae6bfb38f4cd
     container_name: citation-verifier-grobid
     ports:
       - "127.0.0.1:${GROBID_HOST_PORT:-8070}:8070"

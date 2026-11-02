@@ -66,7 +66,7 @@ When a user provides a URL as a source, the server downloads it with multiple sa
 | Embedded credentials | URLs with `username:password@host` are rejected | Always on |
 | PDF header validation | Downloaded content must contain `%PDF-` within the first 1024 bytes | Always on |
 
-**Limitation:** DNS rebinding defenses against time-of-check/time-of-use races are not implemented. An attacker who controls a source URL could potentially exploit a TOCTOU window between DNS resolution and connection. Mitigation: users should only provide source URLs from trusted publishers.
+Source HTTP connections validate every address returned by DNS and connect directly to a validated socket address. HTTPS retains hostname certificate verification and SNI. Source downloads disable ambient proxies and `.netrc` credentials. These controls apply to the V2 source loader; the external RefChecker CLI has its own network behavior and requires separate review.
 
 ### 2. Subprocess Isolation — `server.py`
 
@@ -140,5 +140,5 @@ Users running this server in a multi-user or restricted environment should:
 
 - **No sandboxing of PDF parsing**: pdfplumber is a pure-Python PDF parser with no seccomp/namespace isolation. A maliciously crafted PDF could trigger parser bugs. Mitigation: only load PDFs from trusted sources.
 - **No input sanitization beyond the controls above**: The claim text and source content are passed directly to the NLI model and retrieval pipeline without additional sanitization beyond the type and content checks in `nli.py`.
-- **DNS rebinding**: Not mitigated (see SSRF section above).
+- **External RefChecker networking**: Not covered by the V2 public-only transport (see SSRF section above).
 - **Side-channel**: NLI inference timing may leak information about the claim/evidence pair. This is inherent to local inference and is not considered a vulnerability in the local-first threat model.

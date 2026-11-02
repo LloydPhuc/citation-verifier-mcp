@@ -10,7 +10,7 @@
 -r requirements.txt
 
 # Testing
-pytest==8.3.5
+pytest==9.0.3
 
 # Code quality (optional but recommended)
 ruff==0.9.3
@@ -18,4 +18,4 @@ mypy==1.15.0
 
 # Test fixture PDF generation and encryption
 reportlab==4.2.5
-pypdf==6.19.0
+pypdf==6.21.4

@@ -1,7 +1,7 @@
 # Third-Party Licenses
 
-This file documents all third-party components used by the Citation Verifier MCP
-project, their licenses, and the project's relationship to each.
+This file documents the direct components and selected transitive dependencies
+used by Citation Verifier MCP, their licenses, and the project's relationship to each.
 
 **Project license:** MIT (for project-owned code only — see `LICENSE`)
 
@@ -10,6 +10,11 @@ project, their licenses, and the project's relationship to each.
 
 **License inventory recorded:** 2026-10-02
 **Runtime/publication descriptions reviewed:** 2026-10-04
+
+**Development dependency update:** 2026-11-02 — pytest 9.0.3 and pypdf 6.21.4;
+MIT and BSD-3-Clause license files respectively verified in the published wheels.
+The Linux fixture environment is recorded in `constraints-linux-py313.txt`.
+It does not include the external RefChecker CLI and does not certify a Windows restore.
 
 ---
 
@@ -300,11 +305,11 @@ as disclosed in its license file.
 | Field | Value |
 |---|---|
 | **Component** | pypdf |
-| **Version** | 6.19.0 |
+| **Version** | 6.21.4 |
 | **License** | BSD-3-Clause |
 | **Author** | Mathieu Fenniak and contributors |
-| **Package source** | PyPI: `pypdf==6.19.0` |
-| **License source** | PyPI metadata (License-Expression: BSD-3-Clause); verified license file in `pypdf-6.19.0.dist-info/licenses/LICENSE` |
+| **Package source** | PyPI: `pypdf==6.21.4` |
+| **License source** | PyPI metadata (License-Expression: BSD-3-Clause); verified license file in `pypdf-6.21.4.dist-info/licenses/LICENSE` |
 | **How used** | Test-only: `tests/test_text_extractor.py` creates encrypted test PDFs by wrapping reportlab-generated PDFs with pypdf encryption |
 | **Redistributed?** | No — dev-only dependency |
 | **Obligations** | BSD-3-Clause — copyright notice retention only. |
@@ -314,7 +319,7 @@ as disclosed in its license file.
 | Field | Value |
 |---|---|
 | **Component** | pytest |
-| **Version** | 8.3.5 |
+| **Version** | 9.0.3 |
 | **License** | MIT |
 | **How used** | Test runner |
 | **Source** | PyPI |
@@ -350,7 +355,8 @@ as disclosed in its license file.
 ## Key Transitive Dependencies
 
 These packages are pulled in as dependencies of the direct dependencies above.
-They are listed for completeness. None are redistributed by this project
+The versions below describe the earlier Windows inventory, not the current Linux
+fixture resolution. The list is not exhaustive. None are redistributed by this project
 (each is installed by the end user via pip).
 
 | Package | Version | License | Source (pip show) | How pulled in |
@@ -362,7 +368,7 @@ They are listed for completeness. None are redistributed by this project
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | License-Expression | Transitive via pdfminer.six |
 | charset-normalizer | 3.5.2 | MIT | License-Expression | Transitive via requests |
 | certifi | 2026.7.22 | MPL-2.0 | License-Expression | Transitive via requests; includes Mozilla CA bundle |
-| urllib3 | 2.8.0 | MIT | License-Expression | Transitive via requests |
+| urllib3 | 2.8.0 | MIT | License-Expression | Direct public-source transport; also required by requests |
 | idna | 3.20 | BSD-3-Clause | License-Expression | Transitive via requests |
 | pandas | 3.0.6 | BSD-3-Clause | License file (BSD 3-Clause) | Transitive via academic-refchecker |
 | pybtex | 0.26.1 | MIT | License file | Transitive via academic-refchecker |
@@ -467,8 +473,8 @@ Verified via `git ls-files`:
 | 10 | NLI model | nli-deberta-v3-small | Apache-2.0 | Setup download; offline runtime loading | No |
 | 11 | DeBERTa-v3-small (base) | v3-small | MIT | Model provenance; no separate download | No |
 | 12 | reportlab | 4.2.5 | BSD-3-Clause | Dev-only import — test PDF creation | No |
-| 13 | pypdf | 6.19.0 | BSD-3-Clause | Dev-only import — encrypted test PDFs | No |
-| 14 | pytest | 8.3.5 | MIT | Dev-only test runner | No |
+| 13 | pypdf | 6.21.4 | BSD-3-Clause | Dev-only import — encrypted test PDFs | No |
+| 14 | pytest | 9.0.3 | MIT | Dev-only test runner | No |
 | 15 | ruff | 0.9.3 | MIT | Dev-only linter | No |
 | 16 | mypy | 1.15.0 | MIT | Dev-only type checker | No |
 | — | PyMuPDF (was) | 1.28.2 | AGPL-3.0 | **REMOVED** | No |

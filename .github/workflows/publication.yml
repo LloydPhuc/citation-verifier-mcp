@@ -1,0 +1,81 @@
+name: Publication checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Provision verified Gitleaks
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'gitleaks.zip'
+          $tool = Join-Path $env:RUNNER_TEMP 'gitleaks'
+          Invoke-WebRequest 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip' -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive).Hash.ToLower() -ne 'd29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e') {
+            throw 'Gitleaks checksum mismatch'
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $tool
+      - name: Scan working files, index and history
+        shell: pwsh
+        run: |
+          $scanner = Join-Path $env:RUNNER_TEMP 'gitleaks/gitleaks.exe'
+          & $scanner dir . --redact=100 --no-banner --ignore-gitleaks-allow --max-archive-depth 3 --max-decode-depth 3 --timeout 180
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $scanner git . --staged --redact=100 --no-banner --ignore-gitleaks-allow --timeout 180
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $scanner git . --log-opts '--all --full-history' --redact=100 --no-banner --ignore-gitleaks-allow --timeout 180
+          exit $LASTEXITCODE
+  linux-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Provision binary dependencies without project execution
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/wheels"
+          docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --cpus 2 --memory 3g --pids-limit 96 --ulimit fsize=1073741824:1073741824 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=1g \
+            --mount "type=bind,src=$RUNNER_TEMP/wheels,dst=/w" \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/repo,readonly" \
+            --entrypoint /usr/bin/env \
+            python@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb \
+            -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp TMPDIR=/tmp timeout 600 sh -ec '
+              python -m pip --isolated download --only-binary=:all: --no-cache-dir --no-deps \
+                --dest /w --index-url https://download.pytorch.org/whl/cpu torch==2.14.0+cpu
+              python -m pip --isolated download --only-binary=:all: --no-cache-dir --dest /w \
+                --find-links /w --index-url https://pypi.org/simple \
+                -r /repo/requirements-dev.txt -c /repo/constraints-linux-py313.txt
+            '
+      - name: Run Linux fixture suite in offline OS sandbox
+        shell: bash
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --cpus 2 --memory 5g --pids-limit 96 \
+            --ulimit nofile=512:512 --ulimit cpu=120:120 --ulimit fsize=1073741824:1073741824 \
+            --user 65534:65534 --tmpfs /scratch:rw,exec,nosuid,nodev,size=3g,mode=1777 \
+            --tmpfs /dev/shm:ro,nosuid,nodev,size=1m,mode=0555 \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/repo,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP/wheels,dst=/w,readonly" \
+            --workdir /repo --entrypoint /usr/bin/env \
+            python@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb \
+            -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/scratch TMPDIR=/scratch \
+            XDG_CACHE_HOME=/scratch/cache HF_HOME=/scratch/hf HF_HUB_OFFLINE=1 \
+            TRANSFORMERS_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+            OMP_NUM_THREADS=2 timeout --signal=KILL 450 sh -ec '
+              python -m pip --isolated install --quiet --no-index --only-binary=:all: \
+                --no-cache-dir --no-compile --target /scratch/deps --find-links /w \
+                -r requirements-dev.txt -c constraints-linux-py313.txt
+              export PYTHONPATH=/scratch/deps
+              ulimit -f 131072
+              timeout --signal=KILL 300 python -B -m pytest tests -q -p no:cacheprovider --basetemp=/scratch/pytest
+            '

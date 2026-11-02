@@ -132,7 +132,7 @@ A **strong contradiction** candidate is only counted if its evidence passage sha
 - `page_range_for_span()` — maps character spans to physical page numbers
 - Quote-location searches can flag multiple occurrences as `AMBIGUOUS_MULTIPLE_OCCURRENCES`; exact supplied spans used in the V2 pipeline do not require quote uniqueness
 
-### 9. Decision Policy (`verifier.py` `_decide()`)
+### 9. Decision Policy (`policy.py` `_decide()`)
 
 The decision engine applies a deterministic, ordered set of rules (see [Verdicts](verdicts.md) for full details).
 
@@ -150,6 +150,8 @@ The decision engine applies a deterministic, ordered set of rules (see [Verdicts
 - Each group builds one `BM25Retriever` index
 - Failures are isolated: a failed claim does not abort the batch
 - Order is preserved: results are returned in input order
+- Batch and single calls share `verifier.verify_prepared_claim`: scoring,
+  decisions, persistence and result construction have one implementation.
 
 ## Module Map
 
@@ -167,7 +169,8 @@ citation-verifier-mcp/
 │   ├── retrieval.py               # BM25 lexical retrieval
 │   ├── nli.py                     # Local DeBERTa NLI inference
 │   ├── provenance.py              # Exact provenance verification
-│   ├── verifier.py                # Core pipeline + decision policy
+│   ├── verifier.py                # Shared single/batch claim pipeline
+│   ├── policy.py                  # Pure evidence model + verdict decisions
 │   ├── batch.py                   # Batch processing with source reuse
 │   ├── schemas.py                 # Public MCP response schemas
 │   └── normalizer.py              # Text normalization

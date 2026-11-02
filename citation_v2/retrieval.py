@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 from rank_bm25 import BM25Okapi
 
 from .chunker import TextChunk
 from .config import BM25_TOP_K
-
 
 # ============================================================
 # Tokenization
@@ -353,7 +353,7 @@ class BM25Retriever:
         ) in zip(
             self._searchable_chunks,
             self._token_sets,
-            raw_scores,
+            raw_scores, strict=False,
         ):
 
             overlap = (

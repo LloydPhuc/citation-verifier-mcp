@@ -48,14 +48,17 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$VenvPython = (Join-Path $PSScriptRoot "..\.venv\Scripts\python.exe"),
+    [string]$VenvPython,
 
     [Parameter()]
-    [string]$ServerPy = (Join-Path $PSScriptRoot "..\server.py"),
+    [string]$ServerPy,
 
     [Parameter()]
     [int]$Timeout = 30
 )
+
+if (-not $VenvPython) { $VenvPython = Join-Path $PSScriptRoot '..\.venv\Scripts\python.exe' }
+if (-not $ServerPy) { $ServerPy = Join-Path $PSScriptRoot '..\server.py' }
 
 # Resolve to absolute paths
 $VenvPython = Resolve-Path -LiteralPath $VenvPython -ErrorAction Stop
@@ -81,43 +84,24 @@ if (-not (Test-Path -LiteralPath $ServerPy)) {
     exit 1
 }
 
-# Run the discovery test via pytest (which runs the async test properly)
-# Using the test file directly with pytest
+# Use the standalone async entrypoint, so custom interpreter, server and timeout
+# parameters actually control the process being tested.
 $TestFile = Join-Path $RepoRoot "tests\test_mcp_discovery.py"
 if (-not (Test-Path -LiteralPath $TestFile)) {
     Write-Error "Test file not found at $TestFile"
     exit 1
 }
 
-Write-Host "Running MCP discovery test via pytest..." -ForegroundColor Yellow
-
-# Use pytest with explicit basetemp to avoid Windows temp permission issues
-$Basetemp = Join-Path $env:TEMP "citation_mcp_smoke_$(Get-Random)"
-New-Item -ItemType Directory -Path $Basetemp -Force | Out-Null
-
-$PytestArgs = @(
-    "-m", "unit"
-    "-q"
-    "--tb=short"
-    "--basetemp", $Basetemp
-    "-k", "TestMCPDiscovery"
-    $TestFile
-)
+Write-Host "Running MCP discovery..." -ForegroundColor Yellow
 
 $ExitCode = 0
 try {
-    & $VenvPython -m pytest @PytestArgs
+    & $VenvPython $TestFile --venv-python $VenvPython --server-py $ServerPy --timeout $Timeout
     $ExitCode = $LASTEXITCODE
 }
 catch {
-    Write-Error "pytest invocation failed: $_"
+    Write-Error "MCP discovery failed: $_"
     $ExitCode = 1
-}
-finally {
-    # Cleanup temp directory
-    if (Test-Path -LiteralPath $Basetemp) {
-        Remove-Item -Recurse -Force -LiteralPath $Basetemp -ErrorAction SilentlyContinue
-    }
 }
 
 if ($ExitCode -eq 0) {

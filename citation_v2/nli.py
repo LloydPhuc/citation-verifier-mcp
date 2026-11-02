@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 import threading
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from typing import Any, Sequence
+from typing import Any
 
 import torch
 from transformers import (
@@ -12,7 +13,6 @@ from transformers import (
 )
 
 from .config import NLI_MODEL_ID
-
 
 # ============================================================
 # Exceptions

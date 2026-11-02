@@ -408,7 +408,9 @@ def _download_pdf(
         url
     )
 
-    session = requests.Session()
+    from .public_http import public_session
+
+    session = public_session()
 
     session.headers.update(
         {

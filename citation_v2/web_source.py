@@ -20,6 +20,7 @@ from .config import (
     MAX_SOURCE_DOWNLOAD_BYTES,
 )
 from .normalizer import normalize_text
+from .public_http import public_session
 from .source_loader import (
     SourceDownloadError,
     SourceLoaderError,
@@ -63,10 +64,9 @@ def _check_robots(url: str) -> None:
 def fetch_resource(
     url: str, *, respect_robots: bool = True, max_bytes: int = MAX_SOURCE_DOWNLOAD_BYTES
 ) -> Resource:
-    """No cookies, credentials, ambient proxy credentials or automatic redirects."""
+    """No ambient credentials/proxies or automatic redirects."""
     current = _canonicalize_http_url(url)
-    session = requests.Session()
-    session.trust_env = False
+    session = public_session()
     session.headers.update({"User-Agent": HTTP_USER_AGENT, "Accept": "*/*"})
     deadline = time.monotonic() + 180
     try:

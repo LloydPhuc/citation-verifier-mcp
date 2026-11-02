@@ -34,7 +34,7 @@ Check references and inspect whether a paper supports a factual claim, directly 
 | **Local inference** | DeBERTa-v3 NLI model runs on CPU (PyTorch); no GPU required |
 | **Exact provenance** | Evidence quotes include character offsets and page numbers; `PASS` requires verified provenance |
 | **Relevance-gated contradictions** | Strong contradiction verdicts require topical evidence overlap; reduces some unrelated-evidence artifacts (heuristic coverage ≥0.30) |
-| **Five MCP tools** | `verify_document`, `verify_bibliography`, `citation_summary`, `verify_claim`, `verify_claims` |
+| **Six MCP tools** | `verify_document`, `verify_bibliography`, `citation_summary`, `verify_claim`, `verify_claims`, `verify_reference` |
 | **Batch reuse** | Multiple claims on the same source reuse loaded text, chunks, and BM25 index |
 | **Failure isolation** | One failed claim in a batch does not abort others |
 | **Deterministic verdicts** | `PASS` / `WARN` / `FAIL` / `ABSTAIN` with explicit reasons |
@@ -355,6 +355,9 @@ See [Limitations](docs/limitations.md) for details.
 ---
 
 ## Documentation
+
+For the consolidated local installation, disk cleanup and verification limits,
+see [One local installation](docs/local-consolidation.md).
 
 | Document | Purpose |
 |----------|---------|

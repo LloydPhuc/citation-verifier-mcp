@@ -116,7 +116,7 @@ Historical evidence: TASK 24R recorded **547 passed** on Windows 11 / Python 3.1
 .venv\Scripts\python -m pytest tests/ -m "unit and not slow" -q --basetemp=.\.pytest-tmp
 ```
 
-Use a dedicated disposable `--basetemp`: pytest may delete its contents. Never use production data. `tests/conftest.py` uses `setdefault` for test home/database variables, preserving inherited values; use a separate test shell and dedicated paths.
+Use a dedicated disposable `--basetemp`: pytest may delete its contents. Never use production data. `tests/conftest.py` overrides test home/database variables with a temporary directory. This protects test paths but is not an OS sandbox. Run untrusted source in an isolated environment with no credentials, no external network, bounded resources and only disposable writable storage.
 
 ### Smoke Test
 
@@ -247,3 +247,26 @@ No build step is required. The project is pure Python. The MCP server is launche
 ```
 
 The server communicates via stdio JSON-RPC (MCP protocol). It does not listen on a network port.
+
+### Publication checks
+
+Run `./scripts/check-publication.ps1 -Gitleaks <verified-gitleaks-executable>` before any upload. Provision Gitleaks 8.30.1 from its official release and check its published SHA256. The command checks working files, staged changes and reachable history with redaction; exit 0 covers secret scanning only. Ignored runtime data is excluded from publication, never declared disposable by this check.
+
+The matching CI workflow uses read-only repository permissions, a commit-pinned checkout action, no persisted Git credentials and no report upload. Neither that scan nor Linux mock tests prove Windows installation, real NLI/GROBID behavior or restoration. Those remain separate release gates.
+
+Development dependencies use pytest 9.0.3 and pypdf 6.21.4 to address the advisories linked from PyPI. Keep runtime pins unchanged until a compatibility test supports changing them.
+
+`constraints-linux-py313.txt` records the Linux Python 3.13 fixture environment.
+It is not a Windows lock file or evidence of a fresh Windows installation. The
+bootstrap still resolves transitive dependencies on Windows; verify that resolved
+environment before removing an existing working installation.
+
+The model snapshot inspected for restoration is
+`cross-encoder/nli-deberta-v3-small` at revision
+`fa2804872c3b4bd748f38c0185cc85775361e735`; its `model.safetensors` SHA256 is
+`ebc79588dd73ccfb6a3f6078519cfbf512c5305384c5ea1845bc71cd32216e86`.
+Bootstrap currently follows the model repository default revision, so this record
+does not make model provisioning reproducible. Preserve the existing cache until
+a download and offline load of the recorded snapshot has been independently checked.
+Compose pins the GROBID image by digest; existing containers retain their previous
+port bindings until explicitly recreated.
