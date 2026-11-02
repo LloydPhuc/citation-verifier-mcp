@@ -252,7 +252,7 @@ The server communicates via stdio JSON-RPC (MCP protocol). It does not listen on
 
 Run `./scripts/check-publication.ps1 -Gitleaks <verified-gitleaks-executable>` before any upload. Provision Gitleaks 8.30.1 from its official release and check its published SHA256. The command checks working files, staged changes and reachable history with redaction; exit 0 covers secret scanning only. Ignored runtime data is excluded from publication, never declared disposable by this check.
 
-The matching CI workflow uses read-only repository permissions, a commit-pinned checkout action, no persisted Git credentials and no report upload. Neither that scan nor Linux mock tests prove Windows installation, real NLI/GROBID behavior or restoration. Those remain separate release gates.
+The matching CI workflow uses read-only repository permissions, commit-pinned actions, no persisted Git credentials and no report upload. Its Windows job bootstraps a fresh environment on a GitHub-hosted runner, runs all eight Windows-specific tests without skips, checks MCP stdio discovery, invokes RefChecker help, loads the newly downloaded model offline for inference, and runs the publication command. The Linux fixture suite runs in an offline Docker sandbox. These checks do not exercise live GROBID parsing or RefChecker metadata services; those integrations need separate verification. A secret-clean draft PR may run CI before release approval.
 
 Development dependencies use pytest 9.0.3 and pypdf 6.21.4 to address the advisories linked from PyPI. Keep runtime pins unchanged until a compatibility test supports changing them.
 

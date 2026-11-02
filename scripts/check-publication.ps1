@@ -4,7 +4,7 @@
 .DESCRIPTION
     Requires Gitleaks 8.30.1 from its official release. Does not upload, install
     packages, run project code or grant publication approval. Independently require
-    sandboxed tests, privacy review and a clean Windows restore before push.
+    privacy review before upload, and tests plus a clean Windows restore before release.
 #>
 [CmdletBinding()]
 param([string]$Gitleaks = 'gitleaks')
